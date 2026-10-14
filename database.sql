@@ -49,9 +49,11 @@ CREATE TABLE IF NOT EXISTS service_records (
  vehicle_id INT UNSIGNED NOT NULL,
  service_type_id INT UNSIGNED DEFAULT NULL,
  description TEXT DEFAULT NULL,
- status ENUM('Menunggu','Dikerjakan','Selesai','Dibatalkan') NOT NULL DEFAULT 'Menunggu',
+ status ENUM('Menunggu Pemeriksaan','Sedang Diperbaiki','Menunggu Suku Cadang','Selesai','Siap Diambil','Dibatalkan') NOT NULL DEFAULT 'Menunggu Pemeriksaan',
  service_date DATE NOT NULL,
+ estimated_done DATETIME DEFAULT NULL,
  cost DECIMAL(12,2) NOT NULL DEFAULT 0,
+ completed_at DATETIME DEFAULT NULL,
  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
  KEY idx_service_records_vehicle (vehicle_id),
  KEY idx_service_records_status (status),
@@ -64,11 +66,26 @@ CREATE TABLE IF NOT EXISTS payments (
  service_record_id INT UNSIGNED NOT NULL,
  amount DECIMAL(12,2) NOT NULL DEFAULT 0,
  method ENUM('Tunai','Transfer','Kartu','QRIS') NOT NULL DEFAULT 'Tunai',
- status ENUM('Belum Dibayar','Lunas') NOT NULL DEFAULT 'Belum Dibayar',
+ status ENUM('Belum Dibayar','Menunggu Verifikasi','Lunas','Ditolak') NOT NULL DEFAULT 'Belum Dibayar',
  paid_at DATETIME DEFAULT NULL,
+ proof_path VARCHAR(255) DEFAULT NULL,
+ verified_at DATETIME DEFAULT NULL,
+ verified_by INT UNSIGNED DEFAULT NULL,
+ note VARCHAR(255) DEFAULT NULL,
  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
  UNIQUE KEY unique_payment_service_record (service_record_id),
  CONSTRAINT fk_payments_service_record FOREIGN KEY (service_record_id) REFERENCES service_records(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS service_progress (
+ id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ service_record_id INT UNSIGNED NOT NULL,
+ note_type ENUM('Pemeriksaan','Perbaikan','Kendala','Lainnya') NOT NULL DEFAULT 'Pemeriksaan',
+ note TEXT NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ KEY idx_service_progress_record (service_record_id),
+ CONSTRAINT fk_service_progress_record FOREIGN KEY (service_record_id) REFERENCES service_records(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS service_pins (

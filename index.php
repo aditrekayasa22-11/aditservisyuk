@@ -47,16 +47,12 @@ $serviceIconFor = static function (string $name) use ($serviceIconMap): string {
 require __DIR__ . '/backend/includes/header.php';
 ?>
 <!-- HERO -->
-<!--
-    Latar hero memakai foto bengkel (assets/img/hero-garage.jpg) lewat variabel
-    CSS --hero-photo agar berkas boleh diganti tanpa menyentuh kode.
-    Jika berkas tidak ada, hero tetap tampil dengan gradasi navy bawaan.
--->
-<section class="hero hero-photo" style="--hero-photo: url('<?= e($base) ?>assets/img/hero-garage.jpg')">
+<!-- Foto bengkel motor pada hero diambil dari referensi yang diberikan. -->
+<section class="hero hero-photo home-hero">
     <div class="container hero-inner">
         <div class="hero-copy">
-            <span class="eyebrow eyebrow-light"><span class="eyebrow-dot"></span> SERVIS KENDARAAN TANPA RIBET</span>
-            <h1>Servis Kendaraan Lebih Mudah Bersama <em>ServisYuk</em></h1>
+            <span class="eyebrow eyebrow-light"><span class="eyebrow-dot"></span> BENGKEL MOTOR • SERVIS TANPA RIBET</span>
+            <h1>Motor prima,<br>perjalanan lebih <em>tenang.</em></h1>
             <p class="hero-description">Pantau status pengerjaan, keluhan, estimasi biaya, dan riwayat servis kendaraan Anda kapan saja — cukup dengan nomor polisi, tanpa perlu membuat akun.</p>
 
             <div class="hero-actions">
@@ -71,31 +67,34 @@ require __DIR__ . '/backend/includes/header.php';
             </div>
         </div>
 
-        <div class="hero-art" aria-hidden="true">
-            <div class="art-orbit orbit-one"></div>
-            <div class="art-orbit orbit-two"></div>
-            <div class="art-glow"></div>
-            <div class="art-card" style="animation:floaty 5s ease-in-out infinite">
-                <div class="art-card-head">
-                    <div class="art-card-icon"><?= icon('settings') ?></div>
-                    <div><span>SERVICE TRACKING</span><strong>Status Servis Kendaraan</strong></div>
+        <div class="hero-art">
+            <div class="hero-photo-frame">
+                <img class="hero-garage-image" src="<?= e($base) ?>assets/img/motorcycle-garage.jpg"
+                     alt="Bengkel motor bernuansa hangat dengan motor klasik berwarna merah">
+                <div class="hero-photo-caption">
+                    <span class="hero-caption-icon"><?= icon('wrench') ?></span>
+                    <span><strong>Rawat dengan sepenuh hati</strong><small>Siap menemani setiap perjalanan</small></span>
                 </div>
-                <div class="art-row"><span>Nomor Polisi</span><span class="art-plate">B 1234 SYK</span></div>
-                <div class="art-row"><span>Pekerjaan</span><strong style="color:#fff">Ganti oli mesin</strong></div>
-                <div class="art-row"><span>Status</span><span class="pill pill-live"><span class="live-dot"></span> Dikerjakan</span></div>
-                <div class="art-row"><span>Estimasi Biaya</span><strong style="color:var(--orange-400)">Rp 150.000</strong></div>
             </div>
         </div>
     </div>
 </section>
 
+<section class="trust-strip" aria-label="Keunggulan layanan ServisYuk">
+    <div class="container trust-grid">
+        <div class="trust-item reveal"><span><?= icon('search') ?></span><div><strong>Pantau lebih mudah</strong><small>Cek progres servis kapan saja</small></div></div>
+        <div class="trust-item reveal"><span><?= icon('clipboard-list') ?></span><div><strong>Biaya transparan</strong><small>Estimasi tercatat dengan jelas</small></div></div>
+        <div class="trust-item reveal"><span><?= icon('shield-check') ?></span><div><strong>Riwayat tersimpan</strong><small>Info kendaraan lebih tertata</small></div></div>
+    </div>
+</section>
+
 <!-- LAYANAN -->
-<section class="section" id="layanan">
+<section class="section home-services" id="layanan">
     <div class="container">
         <div class="section-head center reveal">
             <span class="eyebrow">DAFTAR LAYANAN</span>
-            <h2>Layanan bengkel untuk kebutuhan kendaraan Anda</h2>
-            <p>Harga di bawah diambil langsung dari katalog layanan bengkel, sehingga estimasi biaya tetap transparan.</p>
+            <h2>Siap bikin motor kembali <em>prima?</em></h2>
+            <p>Pilih perawatan yang sesuai kebutuhan. Informasi harga mengikuti katalog layanan bengkel.</p>
         </div>
 
         <?php if ($dbError): ?>
@@ -121,59 +120,59 @@ require __DIR__ . '/backend/includes/header.php';
 </section>
 
 <!-- KEUNGGULAN -->
-<section class="section section-alt" id="keunggulan">
+<section class="section home-why" id="keunggulan">
     <div class="container">
         <div class="section-head center reveal">
-            <span class="eyebrow">KENAPA SERVISYUK</span>
-            <h2>Keunggulan bengkel kami</h2>
-            <p>Transparan, cepat, dan nyaman pada setiap servis kendaraan Anda.</p>
+            <span class="eyebrow eyebrow-light">KENAPA SERVISYUK</span>
+            <h2>Servis terasa lebih <em>nyaman.</em></h2>
+            <p>Informasi yang jelas dan praktis, dari motor masuk bengkel sampai siap kembali ke jalan.</p>
         </div>
         <div class="feature-grid">
-            <div class="feature reveal"><span class="feature-number">01</span><h3>Transparan</h3><p>Status servis dan rincian biaya bisa Anda pantau kapan saja melalui halaman cek status.</p></div>
-            <div class="feature reveal"><span class="feature-number">02</span><h3>Proses Cepat</h3><p>Antrean servis yang terorganisir membuat pekerjaan kendaraan Anda selesai tepat waktu.</p></div>
-            <div class="feature reveal"><span class="feature-number">03</span><h3>Mekanik Berpengalaman</h3><p>Dikerjakan oleh tenaga ahli yang sudah menangani berbagai merek kendaraan.</p></div>
-            <div class="feature reveal"><span class="feature-number">04</span><h3>Suku Cadang Asli</h3><p>Kami menggunakan suku cadang berkualitas agar kendaraan Anda awet dan aman.</p></div>
-            <div class="feature reveal"><span class="feature-number">05</span><h3>Riwayat Tersimpan</h3><p>Setiap catatan servis tersimpan rapi sehingga perawatan berikutnya mudah direncanakan.</p></div>
-            <div class="feature reveal"><span class="feature-number">06</span><h3>Data Terlindungi</h3><p>Riwayat kendaraan hanya bisa dibuka menggunakan nomor polisi, dan PIN bila bengkel mengaktifkannya.</p></div>
+            <div class="feature reveal"><div class="feature-topline"><span class="feature-icon"><?= icon('eye') ?></span><span class="feature-number">01</span></div><h3>Progres transparan</h3><p>Status pengerjaan dan estimasi biaya dapat dipantau melalui halaman cek status.</p></div>
+            <div class="feature reveal"><div class="feature-topline"><span class="feature-icon"><?= icon('clock') ?></span><span class="feature-number">02</span></div><h3>Praktis dan efisien</h3><p>Cek informasi servis cukup menggunakan nomor polisi, tanpa perlu membuat akun.</p></div>
+            <div class="feature reveal"><div class="feature-topline"><span class="feature-icon"><?= icon('wrench') ?></span><span class="feature-number">03</span></div><h3>Perawatan terencana</h3><p>Catatan pekerjaan membantu Anda memahami perawatan yang sudah dilakukan.</p></div>
+            <div class="feature reveal"><div class="feature-topline"><span class="feature-icon"><?= icon('coins') ?></span><span class="feature-number">04</span></div><h3>Rincian lebih jelas</h3><p>Jenis pekerjaan dan perkiraan biaya tercatat agar lebih mudah diperiksa.</p></div>
+            <div class="feature reveal"><div class="feature-topline"><span class="feature-icon"><?= icon('history') ?></span><span class="feature-number">05</span></div><h3>Riwayat tertata</h3><p>Informasi servis terdahulu tersimpan sehingga mudah ditinjau kembali.</p></div>
+            <div class="feature reveal"><div class="feature-topline"><span class="feature-icon"><?= icon('lock') ?></span><span class="feature-number">06</span></div><h3>Akses lebih terjaga</h3><p>Data riwayat dapat dilindungi PIN apabila fitur tersebut diaktifkan bengkel.</p></div>
         </div>
     </div>
 </section>
 
 <!-- ALUR PENGGUNAAN -->
-<section class="section" id="alur">
+<section class="section home-process" id="alur">
     <div class="container">
         <div class="section-head center reveal">
             <span class="eyebrow">LANGKAH PENGGUNAAN</span>
-            <h2>Bagaimana alur servis di ServisYuk</h2>
+            <h2>Semudah ini alur <em>servisnya.</em></h2>
             <p>Empat langkah sederhana dari booking sampai kendaraan siap diambil.</p>
         </div>
         <div class="steps">
-            <div class="step reveal"><div class="step-num">1</div><h3>Datang / Booking</h3><p>Bawa kendaraan Anda ke bengkel atau hubungi kami untuk melakukan pemesanan waktu servis.</p></div>
-            <div class="step reveal"><div class="step-num">2</div><h3>Pemeriksaan</h3><p>Mekanik memeriksa kondisi kendaraan dan mencatat keluhan serta pekerjaan yang dibutuhkan.</p></div>
-            <div class="step reveal"><div class="step-num">3</div><h3>Pantau Status</h3><p>Servis dikerjakan sesuai jenis layanan. Pantau statusnya kapan saja melalui nomor polisi.</p></div>
-            <div class="step reveal"><div class="step-num">4</div><h3>Selesai &amp; Bayar</h3><p>Kendaraan siap diambil setelah pekerjaan selesai, biaya dibayar, dan riwayat tersimpan.</p></div>
+            <div class="step reveal"><div class="step-num">01</div><span class="step-kicker">MULAI</span><h3>Datang ke bengkel</h3><p>Bawa kendaraan dan sampaikan keluhan atau layanan yang Anda butuhkan.</p></div>
+            <div class="step reveal"><div class="step-num">02</div><span class="step-kicker">PEMERIKSAAN</span><h3>Cek kondisi motor</h3><p>Keluhan dan pekerjaan servis dicatat agar penanganan lebih terarah.</p></div>
+            <div class="step reveal"><div class="step-num">03</div><span class="step-kicker">PENGERJAAN</span><h3>Pantau progresnya</h3><p>Periksa perkembangan servis dan estimasi melalui nomor polisi kendaraan.</p></div>
+            <div class="step reveal"><div class="step-num">04</div><span class="step-kicker">SELESAI</span><h3>Motor siap jalan</h3><p>Selesaikan pembayaran dan tinjau kembali riwayat pekerjaan servis.</p></div>
         </div>
 
-        <div style="text-align:center;margin-top:40px" class="reveal">
+        <div class="process-action reveal">
             <a class="button button-navy" href="cek-status.php">Cek Status Servis Anda <?= icon('arrow-right') ?></a>
         </div>
     </div>
 </section>
 
 <!-- KONTAK -->
-<section class="section section-alt">
+<section class="section home-contact" id="kontak">
     <div class="container contact-grid">
-        <div class="section-head reveal" style="margin-bottom:0">
-            <span class="eyebrow">INFORMASI KONTAK</span>
-            <h2>Butuh bantuan? Hubungi kami</h2>
-            <p>Tim kami siap membantu menjawab pertanyaan seputar servis kendaraan Anda.</p>
+        <div class="contact-promo reveal">
+            <span class="eyebrow eyebrow-light">ADA YANG BISA KAMI BANTU?</span>
+            <h2>Perjalanan nyaman dimulai dari motor yang terawat.</h2>
+            <p>Hubungi ServisYuk untuk informasi seputar layanan dan servis kendaraan Anda.</p>
             <div class="hero-actions">
-                <a class="button button-primary" href="tel:+6281234567890">Telepon Sekarang</a>
-                <a class="button button-ghost" href="mailto:info@servisyuk.id">Kirim Email</a>
+                <a class="button button-primary" href="tel:+6281234567890"><?= icon('phone') ?> Telepon Bengkel</a>
+                <a class="button button-ghost button-ghost-light" href="mailto:info@servisyuk.id"><?= icon('mail') ?> Kirim Email</a>
             </div>
         </div>
         <div class="contact-info reveal">
-            <div class="contact-item"><div class="contact-icon"><?= icon('map-pin') ?></div><div><h4>Alamat Bengkel</h4><p>Jl. Raya Servis No. 12, Kota Anda</p></div></div>
+            <div class="contact-item"><div class="contact-icon"><?= icon('map-pin') ?></div><div><h4>Alamat Bengkel</h4><p>Jalan Hasyim Asyari No. 22, Madiun</p></div></div>
             <div class="contact-item"><div class="contact-icon"><?= icon('phone') ?></div><div><h4>Telepon / WhatsApp</h4><p><a href="tel:+6281234567890">+62 812-3456-7890</a></p></div></div>
             <div class="contact-item"><div class="contact-icon"><?= icon('mail') ?></div><div><h4>Email</h4><p><a href="mailto:info@servisyuk.id">info@servisyuk.id</a></p></div></div>
             <div class="contact-item"><div class="contact-icon"><?= icon('clock') ?></div><div><h4>Jam Operasional</h4><p>Senin - Sabtu, 08.00 - 17.00 WIB</p></div></div>

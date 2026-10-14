@@ -11,6 +11,8 @@ $base = $adminView ? '../' : '';                    // prefix halaman publik & a
 $adminBase = $adminView ? '' : 'backend/admin/';    // prefix halaman admin
 $current = basename($_SERVER['SCRIPT_NAME']);
 $root = $adminView ? '../../' : '';              // path menuju root proyek (footer/header sama)
+// Area admin (setelah login) memakai sidebar kiri saja, tanpa navbar atas.
+$showNavbar = !($adminView && !empty($_SESSION['admin_id']));
 ?>
 <!doctype html>
 <html lang="id">
@@ -24,10 +26,15 @@ $root = $adminView ? '../../' : '';              // path menuju root proyek (foo
 </head>
 <body>
 <?= icon_sprite() ?>
+<?php if ($showNavbar): ?>
 <header class="site-header">
     <div class="container navbar">
         <a class="brand" href="<?= $base ?>index.php">
-            <span class="brand-mark">S</span>
+            <span class="brand-mark" aria-hidden="true">
+                <span class="brand-mark-orbit"></span>
+                <?= icon('bike', 'brand-bike') ?>
+                <span class="brand-wrench"><?= icon('wrench') ?></span>
+            </span>
             <span>Servis<span class="brand-accent">Yuk</span><small>BENGKEL ONLINE TERPERCAYA</small></span>
         </a>
 
@@ -40,6 +47,7 @@ $root = $adminView ? '../../' : '';              // path menuju root proyek (foo
                 <li><a class="nav-link <?= $current === 'riwayat.php' ? 'active' : '' ?>" href="riwayat.php">Riwayat &amp; PIN</a></li>
                 <li><a class="nav-link <?= $current === 'pelanggan.php' ? 'active' : '' ?>" href="pelanggan.php">Pelanggan</a></li>
                 <li><a class="nav-link <?= $current === 'stok.php' ? 'active' : '' ?>" href="stok.php">Stok</a></li>
+                <li><a class="nav-link <?= $current === 'register.php' ? 'active' : '' ?>" href="register.php">Tambah Admin</a></li>
                 <li class="nav-cta">
                     <span class="admin-greeting">Halo, <?= e($_SESSION['admin_name'] ?? $_SESSION['admin_username'] ?? 'Admin') ?></span>
                     <a class="button button-primary button-sm" href="logout.php">Keluar</a>
@@ -59,4 +67,5 @@ $root = $adminView ? '../../' : '';              // path menuju root proyek (foo
         </ul>
     </div>
 </header>
+<?php endif; ?>
 <main>

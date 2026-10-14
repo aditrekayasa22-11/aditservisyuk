@@ -9,12 +9,16 @@ $adminBase = $adminView ? '' : 'backend/admin/';
 $root = $adminView ? '../../' : '';
 ?>
 </main>
-<footer class="site-footer" id="kontak">
+<footer class="site-footer">
     <div class="container">
         <div class="footer-top">
             <div class="footer-brand">
                 <a class="brand" href="<?= $base ?>index.php">
-                    <span class="brand-mark">S</span>
+                    <span class="brand-mark" aria-hidden="true">
+                        <span class="brand-mark-orbit"></span>
+                        <?= icon('bike', 'brand-bike') ?>
+                        <span class="brand-wrench"><?= icon('wrench') ?></span>
+                    </span>
                     <span>Servis<span class="brand-accent">Yuk</span></span>
                 </a>
                 <p class="footer-about">Bengkel online yang membantu Anda memantau status servis kendaraan secara transparan cukup dengan nomor polisi.</p>
@@ -35,7 +39,7 @@ $root = $adminView ? '../../' : '';
             <div class="footer-col">
                 <h4>Hubungi Kami</h4>
                 <ul>
-                    <li>Jl. Raya Servis No. 12, Kota Anda</li>
+                    <li>Jalan Hasyim Asyari No. 22, Madiun</li>
                     <li><a href="tel:+6281234567890">+62 812-3456-7890</a></li>
                     <li><a href="mailto:info@servisyuk.id">info@servisyuk.id</a></li>
                     <li>Senin - Sabtu, 08.00 - 17.00</li>

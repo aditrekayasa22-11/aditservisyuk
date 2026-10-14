@@ -74,9 +74,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 /** Catatan servis terbaru dipakai sebagai "status terkini". */
 $latest = $services[0] ?? null;
 
-/** Tonggak pengerjaan untuk indikator progres. */
-$statusSteps = ['Menunggu', 'Dikerjakan', 'Selesai'];
+/** Catatan perkembangan servis terbaru (US-10). */
+$progressNotes = $latest ? service_progress_notes(db(), (int) $latest['id']) : [];
+
+/** Tonggak pengerjaan untuk indikator progres (US-04). */
+$statusSteps = ['Menunggu Pemeriksaan', 'Sedang Diperbaiki', 'Menunggu Suku Cadang', 'Selesai', 'Siap Diambil'];
 $statusIndex = $latest ? array_search($latest['status'], $statusSteps, true) : false;
+
+/** Apakah pekerjaan benar-benar sudah selesai (bukan sekadar perkiraan). */
+$isFinished = $latest && in_array($latest['status'], ['Selesai', 'Siap Diambil'], true);
 
 require __DIR__ . '/backend/includes/header.php';
 ?>
@@ -165,6 +171,13 @@ require __DIR__ . '/backend/includes/header.php';
                             <div class="detail-item"><span>Jenis Servis</span><strong><?= e($latest['service_name'] ?: 'Servis umum') ?></strong></div>
                             <div class="detail-item"><span>Tanggal Masuk</span><strong><?= e(date('d M Y', strtotime($latest['service_date']))) ?></strong></div>
                             <div class="detail-item"><span>Estimasi Biaya</span><strong><?= rupiah($latest['cost']) ?></strong></div>
+                            <?php if ($isFinished): ?>
+                                <div class="detail-item"><span>Waktu Selesai</span><strong><?= e($latest['completed_at'] ? format_datetime($latest['completed_at']) : 'Sudah selesai') ?></strong></div>
+                            <?php elseif ($latest['estimated_done']): ?>
+                                <div class="detail-item"><span>Perkiraan Selesai</span><strong><?= e(format_datetime($latest['estimated_done'])) ?></strong></div>
+                            <?php else: ?>
+                                <div class="detail-item"><span>Perkiraan Selesai</span><strong>Belum dapat dipastikan</strong></div>
+                            <?php endif; ?>
                             <div class="detail-item"><span>Pembayaran</span><strong><?= e($latest['payment_status'] ?: 'Belum ada data') ?></strong></div>
                         </div>
 
@@ -172,6 +185,24 @@ require __DIR__ . '/backend/includes/header.php';
                             <span>Keluhan / Catatan Pekerjaan</span>
                             <strong style="font-weight:600;color:var(--slate-700)"><?= e($latest['description'] ?: 'Tidak ada keterangan tambahan.') ?></strong>
                         </div>
+
+                        <?php if ($progressNotes): ?>
+                            <div class="history-heading">
+                                <h3>Perkembangan servis</h3>
+                                <span><?= count($progressNotes) ?> catatan</span>
+                            </div>
+                            <div class="history-list">
+                                <?php foreach ($progressNotes as $note): ?>
+                                    <article class="history-item">
+                                        <div class="history-date"><?= e(date('d M Y', strtotime($note['created_at']))) ?></div>
+                                        <div class="history-details">
+                                            <h4><span class="status-badge status-info"><?= e($note['note_type']) ?></span></h4>
+                                            <p><?= e($note['note']) ?></p>
+                                        </div>
+                                    </article>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
 
                         <div class="history-heading">
                             <h3>Riwayat servis</h3>

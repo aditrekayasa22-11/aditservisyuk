@@ -65,20 +65,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $status = (string) ($_POST['payment_status'] ?? 'Belum Dibayar');
             $method = (string) ($_POST['payment_method'] ?? 'Tunai');
             $methods = ['Tunai', 'Transfer', 'Kartu', 'QRIS'];
-            if ($serviceId < 1 || !in_array($status, ['Belum Dibayar', 'Lunas'], true) || !in_array($method, $methods, true)) {
+            if ($serviceId < 1 || !in_array($status, payment_statuses(), true) || !in_array($method, $methods, true)) {
                 throw new InvalidArgumentException('Data pembayaran tidak valid.');
             }
+            $isPaid = $status === 'Lunas';
             $statement = $pdo->prepare(
-                'INSERT INTO payments (service_record_id, amount, method, status, paid_at)
-                 VALUES (:service_id, :amount, :method, :status, :paid_at)
-                 ON DUPLICATE KEY UPDATE amount=VALUES(amount), method=VALUES(method), status=VALUES(status), paid_at=VALUES(paid_at)'
+                'INSERT INTO payments (service_record_id, amount, method, status, paid_at, verified_at, verified_by)
+                 VALUES (:service_id, :amount, :method, :status, :paid_at, :verified_at, :verified_by)
+                 ON DUPLICATE KEY UPDATE amount=VALUES(amount), method=VALUES(method), status=VALUES(status),
+                     paid_at=VALUES(paid_at), verified_at=VALUES(verified_at), verified_by=VALUES(verified_by)'
             );
             $statement->execute([
                 'service_id' => $serviceId,
                 'amount' => max(0, (float) ($_POST['amount'] ?? 0)),
                 'method' => $method,
                 'status' => $status,
-                'paid_at' => $status === 'Lunas' ? date('Y-m-d H:i:s') : null,
+                'paid_at' => $isPaid ? date('Y-m-d H:i:s') : null,
+                'verified_at' => $isPaid ? date('Y-m-d H:i:s') : null,
+                'verified_by' => $isPaid ? (int) $_SESSION['admin_id'] : null,
             ]);
             flash('Pembayaran berhasil disimpan.');
         } else {
@@ -270,7 +274,7 @@ require __DIR__ . '/../includes/header.php';
                     </div>
                     <div>
                         <label>STATUS PEMBAYARAN</label>
-                        <select class="text-input" name="payment_status"><option>Belum Dibayar</option><option>Lunas</option></select>
+                        <select class="text-input" name="payment_status"><?php foreach (payment_statuses() as $paymentStatus): ?><option><?= e($paymentStatus) ?></option><?php endforeach; ?></select>
                     </div>
                 </div>
                 <button class="button button-primary" type="submit">Simpan pembayaran <?= icon('arrow-right') ?></button>

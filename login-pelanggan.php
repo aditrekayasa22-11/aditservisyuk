@@ -112,107 +112,65 @@ $flashMessage = take_flash();
 
 require __DIR__ . '/backend/includes/header.php';
 ?>
-<section class="page-hero">
-    <div class="container">
-        <span class="eyebrow eyebrow-light"><span class="eyebrow-dot"></span> PORTAL PELANGGAN</span>
-        <h1>Login pelanggan ServisYuk</h1>
-        <p>Tidak perlu membuat username atau password. Cukup nomor polisi kendaraan Anda, lalu verifikasi PIN servis bengkel (atau OTP bila diaktifkan).</p>
+<section class="auth-layout">
+    <div class="auth-aside"><span class="eyebrow"><span class="eyebrow-dot"></span> PORTAL PELANGGAN</span>
+        <h1>Pantau servis Anda.<br><em>Cukup nomor polisi.</em></h1>
+        <p>Tidak perlu membuat username atau password. Masukkan nomor polisi kendaraan Anda, lalu verifikasi PIN servis bengkel (atau OTP bila diaktifkan).</p>
+        <div class="auth-aside-mark">SY<span> / PORTAL PELANGGAN</span></div>
     </div>
-</section>
+    <div class="auth-card">
+        <span class="eyebrow eyebrow-dark">SELAMAT DATANG</span>
+        <h2>Login pelanggan</h2><p class="auth-subtitle">Masuk untuk memantau status servis kendaraan Anda.</p>
+        <?php if ($flashMessage): ?>
+            <div class="alert alert-<?= e($flashMessage['type']) ?> alert-auto"><?= e($flashMessage['message']) ?></div>
+        <?php endif; ?>
+        <?php if ($error): ?><div class="alert alert-error"><?= e($error) ?></div><?php endif; ?>
+        <form method="post">
+            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+            <input type="hidden" name="action" value="<?= $stage === 'pin' ? 'verify_pin' : ($stage === 'otp' ? 'verify_otp' : 'login') ?>">
 
-<section class="container lookup-wrap" style="padding-bottom:80px">
-    <?php if ($flashMessage): ?>
-        <div class="alert alert-<?= e($flashMessage['type']) ?> alert-auto" style="max-width:480px;margin-inline:auto"><?= e($flashMessage['message']) ?></div>
-    <?php endif; ?>
-
-    <div class="lookup-grid">
-        <!-- Form login -->
-        <div class="lookup-panel auth-panel">
-            <div class="panel-heading">
-                <div class="panel-icon"><?= icon('log-in') ?></div>
-                <div>
-                    <h3>Masuk ke portal</h3>
-                    <p>Verifikasi dilakukan di server, bukan di browser</p>
-                </div>
+            <label for="plate_number">NOMOR POLISI</label>
+            <div class="plate-input">
+                <input class="text-input" id="plate_number" name="plate_number" value="<?= e($plate) ?>" placeholder="B 1234 SYK" maxlength="20" autocomplete="off" required>
             </div>
 
-            <form method="post">
-                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-                <input type="hidden" name="action" value="<?= $stage === 'pin' ? 'verify_pin' : ($stage === 'otp' ? 'verify_otp' : 'login') ?>">
-
-                <label for="plate_number">Nomor Polisi</label>
-                <div class="plate-input">
-                    <input class="text-input" id="plate_number" name="plate_number" value="<?= e($plate) ?>" placeholder="B 1234 SYK" maxlength="20" autocomplete="off" required>
+            <?php if ($stage === 'pin' && $vehicle): ?>
+                <div class="alert alert-warning">
+                    Kendaraan <strong><?= e($vehicle['plate_number']) ?></strong> dilindungi PIN. Masukkan PIN yang Anda terima saat menyerahkan kendaraan.
                 </div>
-                <?php if ($error): ?><p class="form-error"><?= e($error) ?></p><?php endif; ?>
+                <label for="pin">PIN SERVIS</label>
+                <input class="text-input" id="pin" name="pin" type="password" inputmode="numeric" pattern="\d{4,6}" maxlength="6" placeholder="4-6 digit angka" autocomplete="off" required>
+                <?php if ($pinError): ?><p class="form-error"><?= e($pinError) ?></p><?php endif; ?>
+            <?php endif; ?>
 
-                <?php if ($stage === 'pin' && $vehicle): ?>
-                    <div class="alert alert-warning" style="margin-top:16px">
-                        Kendaraan <strong><?= e($vehicle['plate_number']) ?></strong> dilindungi PIN. Masukkan PIN yang Anda terima saat menyerahkan kendaraan.
-                    </div>
-                    <label for="pin">PIN Servis</label>
-                    <input class="text-input" id="pin" name="pin" type="password" inputmode="numeric" pattern="\d{4,6}" maxlength="6" placeholder="4-6 digit angka" autocomplete="off" required>
-                    <?php if ($pinError): ?><p class="form-error"><?= e($pinError) ?></p><?php endif; ?>
-                <?php endif; ?>
-
-                <?php if ($stage === 'otp' && $vehicle): ?>
-                    <div class="alert alert-warning" style="margin-top:16px">
-                        Kendaraan <strong><?= e($vehicle['plate_number']) ?></strong> diverifikasi lewat OTP.
-                        <?php if ($otpMessage): ?><br><?= e($otpMessage) ?><?php endif; ?>
-                    </div>
-                    <label for="otp_code">Kode OTP</label>
-                    <input class="text-input" id="otp_code" name="otp_code" inputmode="numeric" maxlength="6" placeholder="Kode verifikasi" autocomplete="off" required>
-                    <?php if ($otpMessage && !customer_otp_enabled()): ?><p class="form-error"><?= e($otpMessage) ?></p><?php endif; ?>
-                <?php endif; ?>
-
-                <button class="button button-primary button-wide" type="submit" style="margin-top:18px">
-                    <?php if ($stage === 'pin'): ?>
-                        <?= icon('lock') ?> Verifikasi PIN &amp; masuk
-                    <?php elseif ($stage === 'otp'): ?>
-                        <?= icon('shield-check') ?> Verifikasi &amp; masuk
-                    <?php else: ?>
-                        <?= icon('log-in') ?> Masuk ke portal <?= icon('arrow-right') ?>
-                    <?php endif; ?>
-                </button>
-
-                <?php if ($stage !== 'plate'): ?>
-                    <a class="back-link" href="login-pelanggan.php"><?= icon('arrow-left') ?> Ulangi dengan nomor polisi lain</a>
-                <?php endif; ?>
-            </form>
-
-            <div class="privacy-note"><?= icon('shield-check') ?> Kami tidak menyimpan username atau password Anda. Sesi berakhir otomatis setelah <?= CUSTOMER_SESSION_MINUTES ?> menit tidak aktif.</div>
-        </div>
-
-        <!-- Informasi fitur portal -->
-        <div>
-            <div class="result-card">
-                <div class="panel-heading">
-                    <div class="panel-icon"><?= icon('car') ?></div>
-                    <div>
-                        <h3>Apa saja yang bisa Anda lihat</h3>
-                        <p>Semua data kendaraan yang terdaftar atas nama Anda</p>
-                    </div>
+            <?php if ($stage === 'otp' && $vehicle): ?>
+                <div class="alert alert-warning">
+                    Kendaraan <strong><?= e($vehicle['plate_number']) ?></strong> diverifikasi lewat OTP.
+                    <?php if ($otpMessage): ?><br><?= e($otpMessage) ?><?php endif; ?>
                 </div>
-                <ul class="benefit-list">
-                    <li><?= icon('circle-check') ?><span><strong>Data kendaraan</strong> — merek, model, tahun, dan nomor polisi.</span></li>
-                    <li><?= icon('circle-check') ?><span><strong>Keluhan &amp; catatan pekerjaan</strong> yang sedang dikerjakan bengkel.</span></li>
-                    <li><?= icon('circle-check') ?><span><strong>Tanggal masuk</strong> dan <strong>status pengerjaan</strong> terkini.</span></li>
-                    <li><?= icon('circle-check') ?><span><strong>Estimasi biaya</strong> beserta status pembayarannya.</span></li>
-                    <li><?= icon('circle-check') ?><span><strong>Riwayat servis</strong> lengkap setiap kendaraan Anda.</span></li>
-                </ul>
-            </div>
+                <label for="otp_code">KODE OTP</label>
+                <input class="text-input" id="otp_code" name="otp_code" inputmode="numeric" maxlength="6" placeholder="Kode verifikasi" autocomplete="off" required>
+                <?php if ($otpMessage && !customer_otp_enabled()): ?><p class="form-error"><?= e($otpMessage) ?></p><?php endif; ?>
+            <?php endif; ?>
 
-            <div class="result-card">
-                <div class="panel-heading">
-                    <div class="panel-icon"><?= icon('shield-check') ?></div>
-                    <div>
-                        <h3>Privasi terjaga</h3>
-                        <p>Data hanya milik akun Anda</p>
-                    </div>
-                </div>
-                <p class="text-muted" style="margin:0">Portal hanya menampilkan kendaraan yang terdaftar atas nama Anda. Nomor polisi pelanggan lain dan riwayat mereka tidak pernah ikut ditampilkan.</p>
-            </div>
-        </div>
+            <button class="button button-primary button-wide" type="submit">
+                <?php if ($stage === 'pin'): ?>
+                    <?= icon('lock') ?> Verifikasi PIN &amp; masuk
+                <?php elseif ($stage === 'otp'): ?>
+                    <?= icon('shield-check') ?> Verifikasi &amp; masuk
+                <?php else: ?>
+                    <?= icon('log-in') ?> Masuk ke portal <?= icon('arrow-right') ?>
+                <?php endif; ?>
+            </button>
+        </form>
+
+        <?php if ($stage !== 'plate'): ?>
+            <a class="back-link" href="login-pelanggan.php"><?= icon('arrow-left') ?> Ulangi dengan nomor polisi lain</a>
+        <?php else: ?>
+            <a class="back-link" href="index.php"><?= icon('arrow-left') ?> Kembali ke halaman utama</a>
+        <?php endif; ?>
+
+        <div class="privacy-note"><?= icon('shield-check') ?> Kami tidak menyimpan username atau password Anda. Sesi berakhir otomatis setelah <?= CUSTOMER_SESSION_MINUTES ?> menit tidak aktif.</div>
     </div>
 </section>
 <?php require __DIR__ . '/backend/includes/footer.php'; ?>

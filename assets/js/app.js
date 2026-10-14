@@ -113,4 +113,18 @@
         });
         pin.focus();
     }
+
+    /* --- 8. Tombol mata: tampilkan / sembunyikan password --- */
+    document.querySelectorAll('[data-password-toggle]').forEach(function (toggle) {
+        var input = document.getElementById(toggle.getAttribute('data-password-toggle'));
+        if (!input) { return; }
+        var use = toggle.querySelector('use');
+        toggle.addEventListener('click', function () {
+            var show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            if (use) { use.setAttribute('href', show ? '#ic-eye-off' : '#ic-eye'); }
+            toggle.setAttribute('aria-label', show ? 'Sembunyikan password' : 'Tampilkan password');
+            toggle.setAttribute('aria-pressed', show ? 'true' : 'false');
+        });
+    });
 })();

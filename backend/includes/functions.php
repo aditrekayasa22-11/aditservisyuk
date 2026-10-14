@@ -45,11 +45,46 @@ function rupiah(float|int|string|null $amount): string
 function status_class(string $status): string
 {
     return match ($status) {
-        'Selesai', 'Lunas' => 'status-success',
-        'Dikerjakan', 'Menunggu', 'Belum Dibayar' => 'status-pending',
-        'Dibatalkan', 'Tidak Ditemukan' => 'status-muted',
+        'Selesai', 'Siap Diambil', 'Lunas' => 'status-success',
+        'Menunggu Pemeriksaan', 'Menunggu Suku Cadang', 'Belum Dibayar' => 'status-pending',
+        'Sedang Diperbaiki', 'Menunggu Verifikasi' => 'status-info',
+        'Dibatalkan', 'Ditolak', 'Tidak Ditemukan' => 'status-muted',
         default => 'status-info',
     };
+}
+
+/** Semua status pengerjaan servis (US-04). */
+function service_statuses(): array
+{
+    return ['Menunggu Pemeriksaan', 'Sedang Diperbaiki', 'Menunggu Suku Cadang', 'Selesai', 'Siap Diambil', 'Dibatalkan'];
+}
+
+/** Status yang dianggap masih dalam proses pengerjaan. */
+function service_active_statuses(): array
+{
+    return ['Menunggu Pemeriksaan', 'Sedang Diperbaiki', 'Menunggu Suku Cadang'];
+}
+
+/** Semua status pembayaran (US-07 & US-11). */
+function payment_statuses(): array
+{
+    return ['Belum Dibayar', 'Menunggu Verifikasi', 'Lunas', 'Ditolak'];
+}
+
+/** Jenis catatan perkembangan servis (US-06). */
+function progress_note_types(): array
+{
+    return ['Pemeriksaan', 'Perbaikan', 'Kendala', 'Lainnya'];
+}
+
+/** Format tanggal & waktu; tampilkan keterangan bila belum ada. */
+function format_datetime(?string $value): string
+{
+    if (!$value) {
+        return 'Belum ditentukan';
+    }
+    $timestamp = strtotime($value);
+    return $timestamp ? date('d M Y, H:i', $timestamp) : 'Belum ditentukan';
 }
 
 function redirect(string $location): never
@@ -98,7 +133,10 @@ function vehicle_services(PDO $pdo, int $vehicleId): array
 {
     $statement = $pdo->prepare(
         'SELECT sr.id, sr.description, sr.status, sr.service_date, sr.cost,
-                st.name AS service_name, p.status AS payment_status, p.amount AS payment_amount
+                sr.estimated_done, sr.completed_at,
+                st.name AS service_name,
+                p.id AS payment_id, p.status AS payment_status, p.amount AS payment_amount,
+                p.proof_path, p.verified_at, p.method AS payment_method
          FROM service_records sr
          LEFT JOIN service_types st ON st.id = sr.service_type_id
          LEFT JOIN payments p ON p.service_record_id = sr.id
@@ -106,6 +144,21 @@ function vehicle_services(PDO $pdo, int $vehicleId): array
          ORDER BY sr.service_date DESC, sr.id DESC'
     );
     $statement->execute(['vehicle_id' => $vehicleId]);
+    return $statement->fetchAll();
+}
+
+/**
+ * Catatan perkembangan satu catatan servis (US-06 & US-10), terbaru di atas.
+ */
+function service_progress_notes(PDO $pdo, int $serviceId): array
+{
+    $statement = $pdo->prepare(
+        'SELECT id, note_type, note, created_at, updated_at
+         FROM service_progress
+         WHERE service_record_id = :id
+         ORDER BY created_at DESC, id DESC'
+    );
+    $statement->execute(['id' => $serviceId]);
     return $statement->fetchAll();
 }
 
@@ -318,4 +371,40 @@ function customer_otp_send(PDO $pdo, array $vehicle): array
 function customer_otp_verify(PDO $pdo, int $vehicleId, string $code): bool
 {
     return false;
+}
+
+/* =========================================================================
+   Bukti transfer pembayaran (US-07 & US-11)
+   Berkas disimpan di backend/storage/proofs dan hanya boleh diakses
+   lewat skrip ber-otorisasi (tidak bisa diakses langsung).
+   ========================================================================= */
+
+/** Folder penyimpanan bukti transfer; dibuat otomatis bila belum ada. */
+function proof_storage_dir(): string
+{
+    $dir = __DIR__ . '/../storage/proofs';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+    return $dir;
+}
+
+/** Nama berkas bukti transfer yang valid (tanpa path, ekstensi diizinkan). */
+function valid_proof_name(string $name): bool
+{
+    if ($name === '' || basename($name) !== $name) {
+        return false;
+    }
+    $extension = strtolower((string) pathinfo($name, PATHINFO_EXTENSION));
+    return in_array($extension, PAYMENT_PROOF_EXTENSIONS, true);
+}
+
+/** Tipe konten berkas bukti berdasarkan ekstensinya. */
+function proof_content_type(string $name): string
+{
+    return match (strtolower((string) pathinfo($name, PATHINFO_EXTENSION))) {
+        'pdf' => 'application/pdf',
+        'png' => 'image/png',
+        default => 'image/jpeg',
+    };
 }

@@ -48,9 +48,14 @@ require __DIR__ . '/../includes/header.php';
         <form method="post">
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
             <label for="username">USERNAME</label><input class="text-input" id="username" name="username" autocomplete="username" required>
-            <label for="password">PASSWORD</label><input class="text-input" id="password" name="password" type="password" autocomplete="current-password" required>
+            <label for="password">PASSWORD</label>
+            <div class="input-password">
+                <input class="text-input" id="password" name="password" type="password" autocomplete="current-password" required>
+                <button class="password-toggle" type="button" data-password-toggle="password" aria-label="Tampilkan password" aria-pressed="false"><?= icon('eye') ?></button>
+            </div>
             <button class="button button-primary button-wide" type="submit"><?= icon('log-in') ?> Masuk ke dashboard <?= icon('arrow-right') ?></button>
         </form>
+        <p class="auth-alt">Belum punya akun admin? <a href="register.php">Daftar di sini</a></p>
         <a class="back-link" href="../index.php"><?= icon('arrow-left') ?> Kembali ke halaman utama</a>
     </div>
 </section>

@@ -4,7 +4,21 @@ require_once __DIR__ . '/../includes/functions.php';
 require_admin();
 
 $pdo = db();
-$allowedStatuses = ['Menunggu', 'Dikerjakan', 'Selesai', 'Dibatalkan'];
+$allowedStatuses = service_statuses();
+$doneStatuses = ['Selesai', 'Siap Diambil'];
+
+/** Normalisasi input datetime-local (YYYY-MM-DDTHH:MM) menjadi DATETIME MySQL. */
+$normalizeDateTime = static function (string $value): ?string {
+    $value = trim($value);
+    if ($value === '') {
+        return null;
+    }
+    $timestamp = strtotime(str_replace('T', ' ', $value));
+    if ($timestamp === false) {
+        throw new InvalidArgumentException('Perkiraan waktu selesai tidak valid.');
+    }
+    return date('Y-m-d H:i:s', $timestamp);
+};
 
 /**
  * Semua aksi pengelolaan data servis ditangani di bagian ini.
@@ -18,8 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'save_service') {
             $vehicleId = (int) ($_POST['vehicle_id'] ?? 0);
             $serviceTypeId = (int) ($_POST['service_type_id'] ?? 0);
-            $status = (string) ($_POST['status'] ?? 'Menunggu');
+            $status = (string) ($_POST['status'] ?? 'Menunggu Pemeriksaan');
             $serviceDate = (string) ($_POST['service_date'] ?? date('Y-m-d'));
+            $estimatedDone = $normalizeDateTime((string) ($_POST['estimated_done'] ?? ''));
 
             if ($vehicleId < 1) {
                 throw new InvalidArgumentException('Pilih kendaraan yang valid.');
@@ -35,8 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $statement = $pdo->prepare(
-                'INSERT INTO service_records (vehicle_id, service_type_id, description, status, service_date, cost)
-                 VALUES (:vehicle_id, :service_type_id, :description, :status, :service_date, :cost)'
+                'INSERT INTO service_records (vehicle_id, service_type_id, description, status, service_date, estimated_done, cost, completed_at)
+                 VALUES (:vehicle_id, :service_type_id, :description, :status, :service_date, :estimated_done, :cost, :completed_at)'
             );
             $statement->execute([
                 'vehicle_id' => $vehicleId,
@@ -44,13 +59,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'description' => trim((string) ($_POST['description'] ?? '')) ?: null,
                 'status' => $status,
                 'service_date' => $serviceDate,
+                'estimated_done' => $estimatedDone,
                 'cost' => max(0, (float) ($_POST['cost'] ?? 0)),
+                'completed_at' => in_array($status, $doneStatuses, true) ? date('Y-m-d H:i:s') : null,
             ]);
             flash('Catatan servis berhasil ditambahkan.');
         } elseif ($action === 'update_service') {
             $id = (int) ($_POST['service_id'] ?? 0);
             $status = (string) ($_POST['status'] ?? '');
             $serviceDate = (string) ($_POST['service_date'] ?? '');
+            $estimatedDone = $normalizeDateTime((string) ($_POST['estimated_done'] ?? ''));
             $cost = max(0, (float) ($_POST['cost'] ?? 0));
             $description = trim((string) ($_POST['description'] ?? '')) ?: null;
 
@@ -64,19 +82,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new InvalidArgumentException('Tanggal servis tidak valid.');
             }
 
+            // Waktu selesai aktual diisi saat status benar-benar selesai,
+            // dan dikosongkan lagi bila pekerjaan dibuka ulang.
+            if (in_array($status, $doneStatuses, true)) {
+                $statement = $pdo->prepare('SELECT completed_at FROM service_records WHERE id = :id');
+                $statement->execute(['id' => $id]);
+                $existing = $statement->fetchColumn();
+                $completedAt = $existing ?: date('Y-m-d H:i:s');
+            } else {
+                $completedAt = null;
+            }
+
             $statement = $pdo->prepare(
                 'UPDATE service_records
-                 SET status = :status, service_date = :service_date, cost = :cost, description = :description
+                 SET status = :status, service_date = :service_date, estimated_done = :estimated_done,
+                     cost = :cost, description = :description, completed_at = :completed_at
                  WHERE id = :id'
             );
             $statement->execute([
                 'status' => $status,
                 'service_date' => $serviceDate,
+                'estimated_done' => $estimatedDone,
                 'cost' => $cost,
                 'description' => $description,
+                'completed_at' => $completedAt,
                 'id' => $id,
             ]);
             flash('Catatan servis berhasil diperbarui.');
+        } elseif ($action === 'save_progress' || $action === 'update_progress') {
+            $id = (int) ($_POST['service_id'] ?? 0);
+            $noteType = (string) ($_POST['note_type'] ?? 'Pemeriksaan');
+            $note = trim((string) ($_POST['note'] ?? ''));
+            if ($id < 1) {
+                throw new InvalidArgumentException('Catatan servis tidak ditemukan.');
+            }
+            if (!in_array($noteType, progress_note_types(), true)) {
+                throw new InvalidArgumentException('Jenis catatan tidak valid.');
+            }
+            if ($note === '') {
+                throw new InvalidArgumentException('Isi catatan perkembangan wajib diisi.');
+            }
+            if ($action === 'update_progress') {
+                $statement = $pdo->prepare('UPDATE service_progress SET note_type = :note_type, note = :note WHERE id = :id AND service_record_id = :service_id');
+                $statement->execute(['note_type' => $noteType, 'note' => $note, 'id' => (int) ($_POST['progress_id'] ?? 0), 'service_id' => $id]);
+                flash('Catatan perkembangan berhasil diperbarui.');
+            } else {
+                $statement = $pdo->prepare('INSERT INTO service_progress (service_record_id, note_type, note) VALUES (:service_id, :note_type, :note)');
+                $statement->execute(['service_id' => $id, 'note_type' => $noteType, 'note' => $note]);
+                flash('Catatan perkembangan berhasil ditambahkan.');
+            }
+        } elseif ($action === 'delete_progress') {
+            $statement = $pdo->prepare('DELETE FROM service_progress WHERE id = :id AND service_record_id = :service_id');
+            $statement->execute(['id' => (int) ($_POST['progress_id'] ?? 0), 'service_id' => (int) ($_POST['service_id'] ?? 0)]);
+            flash('Catatan perkembangan berhasil dihapus.');
         } elseif ($action === 'delete_service') {
             $id = (int) ($_POST['service_id'] ?? 0);
             $statement = $pdo->prepare('DELETE FROM service_records WHERE id = :id');
@@ -114,6 +172,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $filterStatus = (string) ($_GET['status'] ?? '');
 $filterPlate = strtoupper(trim((string) ($_GET['plate'] ?? '')));
 
+/**
+ * Filter status pembayaran (US-07). Servis yang belum punya baris pembayaran
+ * dianggap "Belum Dibayar" agar konsisten dengan halaman lain.
+ */
+$allowedPaymentStatuses = payment_statuses();
+$filterPaymentStatus = (string) ($_GET['payment_status'] ?? '');
+
 $vehicles = $pdo->query(
     'SELECT v.id, v.plate_number, v.brand, v.model, c.name AS customer_name
      FROM vehicles v JOIN customers c ON c.id = v.customer_id
@@ -121,17 +186,23 @@ $vehicles = $pdo->query(
 )->fetchAll();
 $serviceTypes = $pdo->query('SELECT id, name, description, base_price FROM service_types ORDER BY name')->fetchAll();
 
-$sql = 'SELECT sr.id, sr.vehicle_id, sr.service_type_id, sr.description, sr.status, sr.service_date, sr.cost,
+$sql = 'SELECT sr.id, sr.vehicle_id, sr.service_type_id, sr.description, sr.status, sr.service_date, sr.estimated_done, sr.completed_at, sr.cost,
+               COALESCE(p.status, "Belum Dibayar") AS payment_status,
                v.plate_number, c.name AS customer_name, st.name AS service_name
         FROM service_records sr
         JOIN vehicles v ON v.id = sr.vehicle_id
         JOIN customers c ON c.id = v.customer_id
-        LEFT JOIN service_types st ON st.id = sr.service_type_id';
+        LEFT JOIN service_types st ON st.id = sr.service_type_id
+        LEFT JOIN payments p ON p.service_record_id = sr.id';
 $where = [];
 $bindings = [];
 if (in_array($filterStatus, $allowedStatuses, true)) {
     $where[] = 'sr.status = :status';
     $bindings['status'] = $filterStatus;
+}
+if (in_array($filterPaymentStatus, $allowedPaymentStatuses, true)) {
+    $where[] = 'COALESCE(p.status, "Belum Dibayar") = :payment_status';
+    $bindings['payment_status'] = $filterPaymentStatus;
 }
 if ($filterPlate !== '') {
     $where[] = 'REPLACE(UPPER(v.plate_number), " ", "") LIKE :plate';
@@ -157,16 +228,30 @@ if (isset($_GET['edit'])) {
     }
     if (!$editing) {
         $find = $pdo->prepare(
-            'SELECT sr.id, sr.vehicle_id, sr.service_type_id, sr.description, sr.status, sr.service_date, sr.cost,
+            'SELECT sr.id, sr.vehicle_id, sr.service_type_id, sr.description, sr.status, sr.service_date, sr.estimated_done, sr.completed_at, sr.cost,
+                    COALESCE(p.status, "Belum Dibayar") AS payment_status,
                     v.plate_number, c.name AS customer_name, st.name AS service_name
              FROM service_records sr
              JOIN vehicles v ON v.id = sr.vehicle_id
              JOIN customers c ON c.id = v.customer_id
              LEFT JOIN service_types st ON st.id = sr.service_type_id
+             LEFT JOIN payments p ON p.service_record_id = sr.id
              WHERE sr.id = :id'
         );
         $find->execute(['id' => $editId]);
         $editing = $find->fetch() ?: null;
+    }
+}
+
+/** Catatan perkembangan milik servis yang sedang diedit + catatan yang ingin diubah. */
+$progressNotes = $editing ? service_progress_notes($pdo, (int) $editing['id']) : [];
+$editingProgress = null;
+if ($editing && isset($_GET['edit_progress'])) {
+    foreach ($progressNotes as $progressRow) {
+        if ((int) $progressRow['id'] === (int) $_GET['edit_progress']) {
+            $editingProgress = $progressRow;
+            break;
+        }
     }
 }
 
@@ -235,6 +320,11 @@ require __DIR__ . '/../includes/header.php';
                         <input class="text-input" type="date" name="service_date" value="<?= e($editing['service_date'] ?? date('Y-m-d')) ?>" required>
                     </div>
                     <div>
+                        <label>PERKIRAAN SELESAI</label>
+                        <input class="text-input" type="datetime-local" name="estimated_done" value="<?= e($editing && $editing['estimated_done'] ? date('Y-m-d\TH:i', strtotime($editing['estimated_done'])) : '') ?>">
+                        <small class="text-muted">Kosongkan bila waktu selesai belum dapat dipastikan.</small>
+                    </div>
+                    <div>
                         <label>BIAYA (RP)</label>
                         <input class="text-input" type="number" min="0" step="1000" name="cost" value="<?= e((string) ($editing['cost'] ?? '0')) ?>">
                     </div>
@@ -242,7 +332,7 @@ require __DIR__ . '/../includes/header.php';
                         <label>STATUS</label>
                         <select class="text-input" name="status">
                             <?php foreach ($allowedStatuses as $status): ?>
-                                <option <?= ($editing['status'] ?? 'Menunggu') === $status ? 'selected' : '' ?>><?= e($status) ?></option>
+                                <option <?= ($editing['status'] ?? 'Menunggu Pemeriksaan') === $status ? 'selected' : '' ?>><?= e($status) ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -255,6 +345,69 @@ require __DIR__ . '/../includes/header.php';
             </form>
         <?php endif; ?>
     </section>
+
+    <?php if ($editing): ?>
+    <!-- Catatan perkembangan servis (US-06) -->
+    <section class="admin-section" id="perkembangan">
+        <div class="section-heading">
+            <div><span class="eyebrow">PERKEMBANGAN PENGERJAAN</span><h2>Catatan perkembangan servis</h2></div>
+            <span class="count-chip"><?= count($progressNotes) ?> catatan</span>
+        </div>
+        <p class="text-muted" style="margin-top:0">
+            Catatan ini terlihat pelanggan pada halaman cek status / portal pelanggan kendaraan
+            <strong><?= e($editing['plate_number']) ?></strong>. Tuliskan hasil pemeriksaan, tindakan
+            perbaikan, atau kendala pengerjaan.
+        </p>
+
+        <form class="admin-form form-card" method="post">
+            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+            <input type="hidden" name="action" value="<?= $editingProgress ? 'update_progress' : 'save_progress' ?>">
+            <input type="hidden" name="service_id" value="<?= (int) $editing['id'] ?>">
+            <?php if ($editingProgress): ?><input type="hidden" name="progress_id" value="<?= (int) $editingProgress['id'] ?>"><?php endif; ?>
+            <div class="form-grid">
+                <div>
+                    <label>JENIS CATATAN</label>
+                    <select class="text-input" name="note_type">
+                        <?php foreach (progress_note_types() as $type): ?>
+                            <option <?= ($editingProgress['note_type'] ?? 'Pemeriksaan') === $type ? 'selected' : '' ?>><?= e($type) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            <label>ISI CATATAN *</label>
+            <textarea class="text-input" name="note" rows="2" placeholder="Contoh: kampas rem depan aus, menunggu penggantian" required><?= e($editingProgress['note'] ?? '') ?></textarea>
+            <button class="button button-primary" type="submit"><?= $editingProgress ? 'Simpan perubahan' : 'Tambah catatan' ?> <?= icon('arrow-right') ?></button>
+            <?php if ($editingProgress): ?><a class="button button-ghost" href="servis.php?edit=<?= (int) $editing['id'] ?>#perkembangan">Batal edit</a><?php endif; ?>
+        </form>
+
+        <?php if (!$progressNotes): ?>
+            <div class="empty-state">Belum ada catatan perkembangan untuk servis ini.</div>
+        <?php else: ?>
+            <div class="history-list" style="margin-top:18px">
+                <?php foreach ($progressNotes as $note): ?>
+                    <article class="history-item">
+                        <div class="history-date"><?= e(date('d M Y', strtotime($note['created_at']))) ?></div>
+                        <div class="history-details">
+                            <h4><span class="status-badge status-info"><?= e($note['note_type']) ?></span></h4>
+                            <p><?= e($note['note']) ?></p>
+                            <small class="table-sub">Diperbarui <?= e(format_datetime($note['updated_at'])) ?></small>
+                        </div>
+                        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                            <a class="text-button" href="servis.php?edit=<?= (int) $editing['id'] ?>&edit_progress=<?= (int) $note['id'] ?>#perkembangan"><?= icon('pencil') ?> Edit</a>
+                            <form method="post" data-confirm="Hapus catatan perkembangan ini?">
+                                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                                <input type="hidden" name="action" value="delete_progress">
+                                <input type="hidden" name="service_id" value="<?= (int) $editing['id'] ?>">
+                                <input type="hidden" name="progress_id" value="<?= (int) $note['id'] ?>">
+                                <button class="text-button" type="submit" style="color:var(--red)"><?= icon('trash-2') ?> Hapus</button>
+                            </form>
+                        </div>
+                    </article>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+    </section>
+    <?php endif; ?>
 
     <!-- Filter -->
     <section class="admin-section">
@@ -272,7 +425,16 @@ require __DIR__ . '/../includes/header.php';
                 <select class="text-input" id="filter-status" name="status">
                     <option value="">Semua status</option>
                     <?php foreach ($allowedStatuses as $status): ?>
-                        <option <?= $filterStatus === $status ? 'selected' : '' ?>><?= e($status) ?></option>
+                        <option value="<?= e($status) ?>" <?= $filterStatus === $status ? 'selected' : '' ?>><?= e($status) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label for="filter-payment-status">STATUS PEMBAYARAN</label>
+                <select class="text-input" id="filter-payment-status" name="payment_status">
+                    <option value="">Semua status</option>
+                    <?php foreach ($allowedPaymentStatuses as $paymentStatus): ?>
+                        <option value="<?= e($paymentStatus) ?>" <?= $filterPaymentStatus === $paymentStatus ? 'selected' : '' ?>><?= e($paymentStatus) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -288,6 +450,7 @@ require __DIR__ . '/../includes/header.php';
                         <th>KENDARAAN / PELANGGAN</th>
                         <th>PEKERJAAN</th>
                         <th>BIAYA</th>
+                        <th>PEMBAYARAN</th>
                         <th>STATUS</th>
                         <th>AKSI</th>
                     </tr>
@@ -295,10 +458,11 @@ require __DIR__ . '/../includes/header.php';
                 <tbody>
                     <?php foreach ($records as $record): ?>
                         <tr>
-                            <td><?= e(date('d M Y', strtotime($record['service_date']))) ?></td>
+                            <td><?= e(date('d M Y', strtotime($record['service_date']))) ?><?php if ($record['estimated_done']): ?><small class="table-sub">Est. <?= e(date('d M Y H:i', strtotime($record['estimated_done']))) ?></small><?php endif; ?></td>
                             <td><strong><?= e($record['plate_number']) ?></strong><small class="table-sub"><?= e($record['customer_name']) ?></small></td>
                             <td><?= e($record['service_name'] ?: 'Servis') ?><?php if ($record['description']): ?><small class="table-sub"><?= e($record['description']) ?></small><?php endif; ?></td>
                             <td><?= rupiah($record['cost']) ?></td>
+                            <td><span class="status-badge <?= status_class($record['payment_status']) ?>"><?= e($record['payment_status']) ?></span></td>
                             <td><span class="status-badge <?= status_class($record['status']) ?>"><?= e($record['status']) ?></span></td>
                             <td>
                                 <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -314,7 +478,7 @@ require __DIR__ . '/../includes/header.php';
                         </tr>
                     <?php endforeach; ?>
                     <?php if (!$records): ?>
-                        <tr><td colspan="6" class="table-empty">Belum ada catatan servis<?= $filterStatus || $filterPlate ? ' untuk filter ini' : '' ?>.</td></tr>
+                        <tr><td colspan="7" class="table-empty">Belum ada catatan servis<?= $filterStatus || $filterPlate || $filterPaymentStatus ? ' untuk filter ini' : '' ?>.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>

@@ -52,15 +52,21 @@ CREATE TABLE IF NOT EXISTS service_types (
     UNIQUE KEY unique_service_type_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 4. Catatan pekerjaan servis (antrean, keluhan, biaya, status)
+-- 4. Catatan pekerjaan servis (antrean, keluhan, biaya, status, estimasi)
+--    Status: Menunggu Pemeriksaan, Sedang Diperbaiki, Menunggu Suku Cadang,
+--            Selesai, Siap Diambil, Dibatalkan.
+--    estimated_done = perkiraan waktu selesai (diisi admin).
+--    completed_at   = waktu kendaraan benar-benar selesai (diisi sistem).
 CREATE TABLE IF NOT EXISTS service_records (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     vehicle_id INT UNSIGNED NOT NULL,
     service_type_id INT UNSIGNED DEFAULT NULL,
     description TEXT DEFAULT NULL,
-    status ENUM('Menunggu','Dikerjakan','Selesai','Dibatalkan') NOT NULL DEFAULT 'Menunggu',
+    status ENUM('Menunggu Pemeriksaan','Sedang Diperbaiki','Menunggu Suku Cadang','Selesai','Siap Diambil','Dibatalkan') NOT NULL DEFAULT 'Menunggu Pemeriksaan',
     service_date DATE NOT NULL,
+    estimated_done DATETIME DEFAULT NULL,
     cost DECIMAL(12,2) NOT NULL DEFAULT 0,
+    completed_at DATETIME DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     KEY idx_service_records_vehicle (vehicle_id),
     KEY idx_service_records_status (status),
@@ -68,19 +74,53 @@ CREATE TABLE IF NOT EXISTS service_records (
     CONSTRAINT fk_service_records_type FOREIGN KEY (service_type_id) REFERENCES service_types(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Tambah kolom baru bila tabel sudah ada (idempoten, MariaDB 10.0.2+).
+ALTER TABLE service_records ADD COLUMN IF NOT EXISTS estimated_done DATETIME DEFAULT NULL AFTER service_date;
+ALTER TABLE service_records ADD COLUMN IF NOT EXISTS completed_at DATETIME DEFAULT NULL AFTER cost;
+
+-- Pindahkan status lama ke status baru, lalu kunci ulang sebagai ENUM.
+ALTER TABLE service_records MODIFY status VARCHAR(40) NOT NULL DEFAULT 'Menunggu Pemeriksaan';
+UPDATE service_records SET status = 'Menunggu Pemeriksaan' WHERE status = 'Menunggu';
+UPDATE service_records SET status = 'Sedang Diperbaiki'  WHERE status = 'Dikerjakan';
+ALTER TABLE service_records MODIFY status ENUM('Menunggu Pemeriksaan','Sedang Diperbaiki','Menunggu Suku Cadang','Selesai','Siap Diambil','Dibatalkan') NOT NULL DEFAULT 'Menunggu Pemeriksaan';
+
 -- 5. Pembayaran (satu catatan servis satu baris pembayaran)
---    Tabel payments lama (kolom service_id/proof_path) diganti definisi ini.
-DROP TABLE IF EXISTS payments;
-CREATE TABLE payments (
+--    Status: Belum Dibayar, Menunggu Verifikasi, Lunas, Ditolak.
+--    proof_path = berkas bukti transfer dari pelanggan.
+--    verified_at / verified_by = tanggal & admin yang memverifikasi.
+CREATE TABLE IF NOT EXISTS payments (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     service_record_id INT UNSIGNED NOT NULL,
     amount DECIMAL(12,2) NOT NULL DEFAULT 0,
     method ENUM('Tunai','Transfer','Kartu','QRIS') NOT NULL DEFAULT 'Tunai',
-    status ENUM('Belum Dibayar','Lunas') NOT NULL DEFAULT 'Belum Dibayar',
+    status ENUM('Belum Dibayar','Menunggu Verifikasi','Lunas','Ditolak') NOT NULL DEFAULT 'Belum Dibayar',
     paid_at DATETIME DEFAULT NULL,
+    proof_path VARCHAR(255) DEFAULT NULL,
+    verified_at DATETIME DEFAULT NULL,
+    verified_by INT UNSIGNED DEFAULT NULL,
+    note VARCHAR(255) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY unique_payment_service_record (service_record_id),
     CONSTRAINT fk_payments_service_record FOREIGN KEY (service_record_id) REFERENCES service_records(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tambah kolom pembayaran baru bila tabel sudah ada.
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS proof_path VARCHAR(255) DEFAULT NULL AFTER paid_at;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS verified_at DATETIME DEFAULT NULL AFTER proof_path;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS verified_by INT UNSIGNED DEFAULT NULL AFTER verified_at;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS note VARCHAR(255) DEFAULT NULL AFTER verified_by;
+ALTER TABLE payments MODIFY status ENUM('Belum Dibayar','Menunggu Verifikasi','Lunas','Ditolak') NOT NULL DEFAULT 'Belum Dibayar';
+
+-- 5b. Catatan perkembangan servis (hasil pemeriksaan, tindakan, kendala).
+CREATE TABLE IF NOT EXISTS service_progress (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    service_record_id INT UNSIGNED NOT NULL,
+    note_type ENUM('Pemeriksaan','Perbaikan','Kendala','Lainnya') NOT NULL DEFAULT 'Pemeriksaan',
+    note TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_service_progress_record (service_record_id),
+    CONSTRAINT fk_service_progress_record FOREIGN KEY (service_record_id) REFERENCES service_records(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 6. PIN akses pelanggan (riwayat servis hanya dibuka dengan PIN)

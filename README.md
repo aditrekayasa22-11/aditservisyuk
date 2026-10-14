@@ -24,7 +24,7 @@ Sistem informasi bengkel online: admin mengelola pelanggan, kendaraan, antrean s
 ### Admin (`backend/admin/`)
 - Login username + password (hash `password_verify`, sesi di-regenerate, CSRF pada semua form).
 - `dashboard.php` — statistik pelanggan, kendaraan, servis aktif, pendapatan hari ini, tunggakan, stok; ubah status antrean.
-- `servis.php` — tambah/ubah/hapus catatan servis + jenis layanan, pencarian, filter status & plat.
+- `servis.php` — tambah/ubah/hapus catatan servis + jenis layanan, catatan perkembangan, pencarian, filter status pengerjaan & status pembayaran (Belum Dibayar/Menunggu Verifikasi/Lunas/Ditolak) dan plat.
 - `riwayat.php` — riwayat servis per kendaraan + atur/hapus PIN akses (4–6 digit, berlaku terbatas).
 - `pelanggan.php` — pelanggan, kendaraan, pembayaran.
 - `stok.php` — barang masuk/keluar, stok minimum.
@@ -55,7 +55,7 @@ Aturan keamanan: semua tulis butuh sesi admin + header `X-CSRF-Token` (GET publi
 - `akun-pelanggan.php` — halaman portal: data kendaraan, keluhan, tanggal masuk, status, estimasi biaya, riwayat (hanya milik sesi yang login)
 - `logout-pelanggan.php` — keluar dari portal pelanggan (sesi dihapus total)
 - `assets/css/style.css`, `assets/js/app.js` — design system & interaksi (salinan identik ada di `backend/assets/` untuk halaman admin)
-- `assets/img/hero-garage.jpg` — foto latar hero beranda (kelas `.hero-photo` di `index.php`; kredit & cara mengganti ada di `assets/img/CREDIT.txt`)
+- `assets/img/motorcycle-garage.jpg` — foto bengkel motor pada hero beranda (kredit sumber ada di `assets/img/CREDIT.txt`)
 - `backend/includes/functions.php` — helper bersama: PDO, CSRF, flash, format rupiah/status, PIN, sesi & verifikasi portal pelanggan
 - `backend/includes/icons.php` — sprite ikon SVG inline + helper `icon('nama')` (set ikon Lucide, lisensi ISC; dirender sekali per halaman oleh `header.php`)
 - `backend/includes/header.php`, `footer.php` — layout navbar/footer (publik & admin)

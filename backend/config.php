@@ -21,6 +21,20 @@ define('CUSTOMER_OTP_ENABLED', filter_var(getenv('CUSTOMER_OTP_ENABLED') ?: '0',
 /** Masa berlaku sesi portal pelanggan (menit) sejak terakhir masuk. */
 define('CUSTOMER_SESSION_MINUTES', (int) (getenv('CUSTOMER_SESSION_MINUTES') ?: 60));
 
+/* --------------------------------------------------------------------------
+   Informasi rekening tujuan pembayaran transfer (US-11).
+   Ubah tiga nilai di bawah ini sesuai rekening resmi bengkel.
+   -------------------------------------------------------------------------- */
+define('BANK_NAME', getenv('BANK_NAME') ?: 'Bank Contoh');
+define('BANK_ACCOUNT_NUMBER', getenv('BANK_ACCOUNT_NUMBER') ?: '0000000000');
+define('BANK_ACCOUNT_NAME', getenv('BANK_ACCOUNT_NAME') ?: 'Bengkel ServisYuk');
+
+/** Batas ukuran bukti transfer yang boleh diunggah pelanggan (byte). */
+define('PAYMENT_PROOF_MAX_BYTES', 2 * 1024 * 1024);
+
+/** Ekstensi berkas bukti transfer yang diizinkan. */
+define('PAYMENT_PROOF_EXTENSIONS', ['jpg', 'jpeg', 'png', 'pdf']);
+
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
