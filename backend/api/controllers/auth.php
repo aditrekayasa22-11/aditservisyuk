@@ -24,6 +24,7 @@ function auth_setup_first_admin(array $params): array
 
     $username = api_str('username');
     $password = (string) (api_input('password') ?? '');
+    $name = api_str('name') ?: $username;
 
     if (!preg_match('/^[a-zA-Z0-9_.-]{4,40}$/', $username)) {
         api_fail('Username harus 4–40 karakter dan hanya boleh berisi huruf, angka, titik, garis bawah, atau tanda hubung.', 422, 'validation');
@@ -38,10 +39,11 @@ function auth_setup_first_admin(array $params): array
         if ((int) $pdo->query('SELECT COUNT(*) FROM admins')->fetchColumn() > 0) {
             throw new RuntimeException('Akun admin sudah dibuat.');
         }
-        $statement = $pdo->prepare('INSERT INTO admins (username, password_hash) VALUES (:username, :password_hash)');
+        $statement = $pdo->prepare('INSERT INTO admins (username, password_hash, name) VALUES (:username, :password_hash, :name)');
         $statement->execute([
             'username' => $username,
             'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+            'name' => $name,
         ]);
         $adminId = (int) $pdo->lastInsertId();
         $pdo->commit();

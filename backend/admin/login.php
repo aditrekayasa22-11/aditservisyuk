@@ -37,8 +37,8 @@ require __DIR__ . '/../includes/header.php';
 <section class="auth-layout">
     <div class="auth-aside"><span class="eyebrow"><span class="eyebrow-dot"></span> AREA ADMINISTRATOR</span>
         <h1>Semua operasional.<br><em>Satu dashboard.</em></h1>
-        <p>Kelola pelanggan, pekerjaan servis, stok, dan pembayaran AutoVance dari satu tempat.</p>
-        <div class="auth-aside-mark">AV<span> / CONTROL CENTER</span></div>
+        <p>Kelola pelanggan, pekerjaan servis, stok, dan pembayaran <?= APP_NAME ?> dari satu tempat.</p>
+        <div class="auth-aside-mark">SY<span> / CONTROL CENTER</span></div>
     </div>
     <div class="auth-card">
         <span class="eyebrow eyebrow-dark">SELAMAT DATANG KEMBALI</span>
@@ -49,9 +49,9 @@ require __DIR__ . '/../includes/header.php';
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
             <label for="username">USERNAME</label><input class="text-input" id="username" name="username" autocomplete="username" required>
             <label for="password">PASSWORD</label><input class="text-input" id="password" name="password" type="password" autocomplete="current-password" required>
-            <button class="button button-primary button-wide" type="submit">Masuk ke dashboard <span>→</span></button>
+            <button class="button button-primary button-wide" type="submit"><?= icon('log-in') ?> Masuk ke dashboard <?= icon('arrow-right') ?></button>
         </form>
-        <a class="back-link" href="../index.php">← Kembali ke halaman utama</a>
+        <a class="back-link" href="../index.php"><?= icon('arrow-left') ?> Kembali ke halaman utama</a>
     </div>
 </section>
 <?php require __DIR__ . '/../includes/footer.php'; ?>

@@ -9,8 +9,12 @@ function customers_list_items(array $params): array
     $sql = 'SELECT id, name, phone, email, created_at FROM customers';
     $bindings = [];
     if ($q !== '') {
-        $sql .= ' WHERE name LIKE :q OR phone LIKE :q OR email LIKE :q';
-        $bindings['q'] = '%' . $q . '%';
+        // Placeholder unik: prepared statement native tidak boleh memakai
+        // parameter bernama yang sama lebih dari sekali.
+        $sql .= ' WHERE name LIKE :q_name OR phone LIKE :q_phone OR email LIKE :q_email';
+        $bindings['q_name'] = '%' . $q . '%';
+        $bindings['q_phone'] = '%' . $q . '%';
+        $bindings['q_email'] = '%' . $q . '%';
     }
     $sql .= ' ORDER BY id DESC';
 
@@ -21,9 +25,10 @@ function customers_list_items(array $params): array
     $vehicleStatement = $pdo->prepare(
         'SELECT id, plate_number, brand, model, year FROM vehicles WHERE customer_id = :customer_id ORDER BY plate_number'
     );
-    foreach ($customers as $customer) {
+    foreach ($customers as $index => $customer) {
         $vehicleStatement->execute(['customer_id' => $customer['id']]);
-        $customer['vehicles'] = $vehicleStatement->fetchAll();
+        // Tulis kembali ke indeks asli; variabel $customer di foreach adalah salinan.
+        $customers[$index]['vehicles'] = $vehicleStatement->fetchAll();
     }
 
     return $customers;

@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 /**
  * Lookup status servis kendaraan (publik).
+ * Jika kendaraan dilindungi PIN, data riwayat hanya keluar setelah
+ * parameter `pin` benar — sama seperti halaman cek-status pelanggan.
  */
 function lookup_public(array $params): array
 {
@@ -23,6 +25,19 @@ function lookup_public(array $params): array
 
     if (!$vehicle) {
         api_fail('Nomor polisi ' . $plate . ' belum terdaftar. Periksa kembali penulisan atau hubungi bengkel kami.', 404, 'vehicle_not_found');
+    }
+
+    // Proteksi PIN: riwayat tidak boleh bocor hanya karena orang mengetahui nomor polisi.
+    if (vehicle_has_pin($pdo, (int) $vehicle['id'])) {
+        if (!pin_attempt_allowed($plate)) {
+            api_fail('Terlalu banyak percobaan PIN yang gagal. Muat ulang halaman lalu coba kembali.', 429, 'pin_rate_limited');
+        }
+        $pin = (string) ($params['pin'] ?? '');
+        if (!verify_vehicle_pin($pdo, (int) $vehicle['id'], $pin)) {
+            pin_attempt_failed($plate);
+            api_fail('Kendaraan dilindungi PIN. Sertakan parameter pin yang Anda terima saat servis.', 401, 'pin_required');
+        }
+        pin_attempt_reset($plate);
     }
 
     $statement = $pdo->prepare(

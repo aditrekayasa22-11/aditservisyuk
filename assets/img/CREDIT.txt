@@ -1,0 +1,18 @@
+Kredit aset gambar ServisYuk
+=============================
+
+hero-garage.jpg
+  Sumber : Wikimedia Commons — "Car Restoration Workshop (Unsplash).jpg"
+           https://commons.wikimedia.org/wiki/File:Car_Restoration_Workshop_(Unsplash).jpg
+  Asal   : Unsplash (lisensi Unsplash — bebas dipakai, komersial & modifikasi,
+           tanpa wajib atribusi; kredit tetap dicantumkan sebagai apresiasi)
+  Ukuran : 1920 x 1280 px, JPEG
+  Dipakai: latar hero beranda (index.php, kelas .hero-photo)
+
+Cara mengganti dengan foto sendiri
+----------------------------------
+Ganti isi berkas ini (nama berkas tetap `hero-garage.jpg`) lalu muat ulang
+halaman beranda dengan Ctrl+Shift+R. Tidak perlu mengubah kode CSS/PHP:
+`index.php` menunjuk ke `assets/img/hero-garage.jpg` lewat variabel CSS
+`--hero-photo`. Jika berkas tidak ada, hero otomatis tampil dengan gradasi
+navy oranye bawaan (tidak rusak).

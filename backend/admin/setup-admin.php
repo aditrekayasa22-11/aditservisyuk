@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$error && !$complete) {
     verify_csrf();
     $username = trim((string) ($_POST['username'] ?? ''));
     $password = (string) ($_POST['password'] ?? '');
+    $name = trim((string) ($_POST['name'] ?? '')) ?: $username;
     if (!preg_match('/^[a-zA-Z0-9_.-]{4,40}$/', $username)) {
         $error = 'Username harus 4–40 karakter dan hanya boleh berisi huruf, angka, titik, garis bawah, atau tanda hubung.';
     } elseif (strlen($password) < 10) {
@@ -25,8 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$error && !$complete) {
             if ((int) $pdo->query('SELECT COUNT(*) FROM admins')->fetchColumn() > 0) {
                 throw new RuntimeException('Akun admin sudah dibuat. Silakan login.');
             }
-            $statement = $pdo->prepare('INSERT INTO admins (username, password_hash) VALUES (:username, :password_hash)');
-            $statement->execute(['username' => $username, 'password_hash' => password_hash($password, PASSWORD_DEFAULT)]);
+            $statement = $pdo->prepare('INSERT INTO admins (username, password_hash, name) VALUES (:username, :password_hash, :name)');
+            $statement->execute(['username' => $username, 'password_hash' => password_hash($password, PASSWORD_DEFAULT), 'name' => $name]);
             $pdo->commit();
             $complete = true;
         } catch (RuntimeException $exception) {
@@ -50,8 +51,8 @@ require __DIR__ . '/../includes/header.php';
 <section class="auth-layout setup-layout">
     <div class="auth-aside"><span class="eyebrow"><span class="eyebrow-dot"></span> PENGATURAN AWAL</span>
         <h1>Siapkan akses<br><em>administrator.</em></h1>
-        <p>Buat satu akun admin untuk mulai mengelola data AutoVance. Password disimpan dalam bentuk hash.</p>
-        <div class="auth-aside-mark">AV<span> / SECURE SETUP</span></div>
+        <p>Buat satu akun admin untuk mulai mengelola data <?= APP_NAME ?>. Password disimpan dalam bentuk hash.</p>
+        <div class="auth-aside-mark">SY<span> / SECURE SETUP</span></div>
     </div>
     <div class="auth-card">
         <span class="eyebrow eyebrow-dark">KONFIGURASI AKUN</span><h2>Buat admin pertama</h2>
@@ -59,16 +60,17 @@ require __DIR__ . '/../includes/header.php';
         <?php if ($error): ?><div class="alert alert-error"><?= e($error) ?></div><?php endif; ?>
         <?php if ($complete): ?>
             <div class="alert alert-success">Akun admin telah tersedia. Halaman pembuatan akun pertama sekarang terkunci.</div>
-            <a class="button button-primary button-wide" href="login.php">Lanjut ke login <span>→</span></a>
+            <a class="button button-primary button-wide" href="login.php">Lanjut ke login <?= icon('arrow-right') ?></a>
         <?php else: ?>
             <form method="post">
                 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                 <label for="username">USERNAME</label><input class="text-input" id="username" name="username" minlength="4" maxlength="40" required>
+                <label for="name">NAMA TAMPILAN (OPSIONAL)</label><input class="text-input" id="name" name="name" maxlength="100" placeholder="Dikosongkan = username">
                 <label for="password">PASSWORD BARU</label><input class="text-input" id="password" name="password" type="password" minlength="10" autocomplete="new-password" required>
-                <button class="button button-primary button-wide" type="submit">Buat akun admin <span>→</span></button>
+                <button class="button button-primary button-wide" type="submit"><?= icon('user-plus') ?> Buat akun admin <?= icon('arrow-right') ?></button>
             </form>
         <?php endif; ?>
-        <a class="back-link" href="login.php">← Kembali ke login</a>
+        <a class="back-link" href="login.php"><?= icon('arrow-left') ?> Kembali ke login</a>
     </div>
 </section>
 <?php require __DIR__ . '/../includes/footer.php'; ?>

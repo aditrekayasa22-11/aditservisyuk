@@ -8,8 +8,11 @@ function inventory_list_items(array $params): array
     $sql = 'SELECT id, name, sku, quantity, unit, purchase_price, updated_at FROM inventory';
     $bindings = [];
     if ($q !== '') {
-        $sql .= ' WHERE name LIKE :q OR sku LIKE :q';
-        $bindings['q'] = '%' . $q . '%';
+        // Placeholder unik: prepared statement native tidak boleh memakai
+        // parameter bernama yang sama lebih dari sekali.
+        $sql .= ' WHERE name LIKE :q_name OR sku LIKE :q_sku';
+        $bindings['q_name'] = '%' . $q . '%';
+        $bindings['q_sku'] = '%' . $q . '%';
     }
     $sql .= ' ORDER BY name';
 

@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Router REST API AutoVance.
+ * Router REST API ServisYuk.
  *
  * Dipanggil sebagai: backend/api/index.php/<endpoint>?param=...
  * Fallback bila PATH_INFO tidak tersedia: backend/api/index.php?path=/endpoint
@@ -44,12 +44,26 @@ foreach ($routes as $route) {
 
     require_once __DIR__ . '/controllers/' . $controller . '.php';
 
+    // Konvensi penamaan di project ini ada dua:
+    //   - route umum   -> handler polos, fungsi berprefix controller (dashboard + summary)
+    //   - route lookup -> handler sudah berprefix (lookup + lookup_public)
+    // Karena itu resolver mencoba keduanya agar kedua gaya tetap jalan.
+    $callable = null;
+    if (is_callable($controller . '_' . $handler)) {
+        $callable = $controller . '_' . $handler;
+    } elseif (is_callable($handler)) {
+        $callable = $handler;
+    } else {
+        error_log('[' . APP_NAME . ' API] Handler tidak ditemukan untuk ' . $method . ' ' . $path);
+        api_fail('Endpoint tidak ditemukan.', 404, 'not_found');
+    }
+
     try {
-        api_ok($handler($params));
+        api_ok($callable($params));
     } catch (PDOException $exception) {
         api_fail_db($exception);
     } catch (Throwable $exception) {
-        error_log('[AutoVance API] ' . $exception->getMessage());
+        error_log('[' . APP_NAME . ' API] ' . $exception->getMessage());
         api_fail('Terjadi kesalahan tak terduga di server.', 500, 'server_error');
     }
 }
