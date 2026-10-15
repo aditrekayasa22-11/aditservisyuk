@@ -15,7 +15,7 @@ function status_badge(string $status): string {
     return '<span class="badge '.$class.'">'.e($status).'</span>';
 }
 function render_header(string $title,bool $admin=true): void {
-    ?><!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title><?= e($title) ?> — ServisYuk</title><link rel="stylesheet" href="assets/css/style.css"></head><body class="<?= $admin?'admin-body':'public-body' ?>"><?php
+    ?><!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title><?= e($title) ?> — ServisYuk</title><link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg"><link rel="stylesheet" href="assets/css/style.css"></head><body class="<?= $admin?'admin-body':'public-body' ?>"><?php
 }
 function render_footer(): void { ?><script src="assets/js/app.js"></script></body></html><?php }
 function admin_layout_start(string $active): void { ?>

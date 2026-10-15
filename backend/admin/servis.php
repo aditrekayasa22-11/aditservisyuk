@@ -6,6 +6,34 @@ require_admin();
 $pdo = db();
 $allowedStatuses = service_statuses();
 $doneStatuses = ['Selesai', 'Siap Diambil'];
+$getSelectedServiceTypes = static function (PDO $pdo): array {
+    $submitted = $_POST['service_type_ids'] ?? (isset($_POST['service_type_id']) ? [$_POST['service_type_id']] : []);
+    if (!is_array($submitted)) {
+        throw new InvalidArgumentException('Pilih minimal satu jenis servis yang valid.');
+    }
+
+    $ids = [];
+    foreach ($submitted as $value) {
+        if (!is_scalar($value) || !preg_match('/^[1-9]\d*$/', (string) $value)) {
+            throw new InvalidArgumentException('Pilih jenis servis yang valid.');
+        }
+        $ids[] = (int) $value;
+    }
+    $ids = array_values(array_unique($ids));
+    if (!$ids) {
+        throw new InvalidArgumentException('Pilih minimal satu jenis servis.');
+    }
+
+    $placeholders = implode(', ', array_fill(0, count($ids), '?'));
+    $statement = $pdo->prepare("SELECT id, base_price FROM service_types WHERE id IN ($placeholders)");
+    $statement->execute($ids);
+    $prices = $statement->fetchAll();
+    if (count($prices) !== count($ids)) {
+        throw new InvalidArgumentException('Salah satu jenis servis tidak valid.');
+    }
+
+    return [$ids, array_sum(array_map(static fn (array $type): float => (float) $type['base_price'], $prices))];
+};
 
 /** Normalisasi input datetime-local (YYYY-MM-DDTHH:MM) menjadi DATETIME MySQL. */
 $normalizeDateTime = static function (string $value): ?string {
@@ -31,16 +59,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($action === 'save_service') {
             $vehicleId = (int) ($_POST['vehicle_id'] ?? 0);
-            $serviceTypeId = (int) ($_POST['service_type_id'] ?? 0);
+            [$serviceTypeIds, $cost] = $getSelectedServiceTypes($pdo);
             $status = (string) ($_POST['status'] ?? 'Menunggu Pemeriksaan');
             $serviceDate = (string) ($_POST['service_date'] ?? date('Y-m-d'));
             $estimatedDone = $normalizeDateTime((string) ($_POST['estimated_done'] ?? ''));
 
             if ($vehicleId < 1) {
                 throw new InvalidArgumentException('Pilih kendaraan yang valid.');
-            }
-            if ($serviceTypeId < 1) {
-                throw new InvalidArgumentException('Pilih jenis servis yang valid.');
             }
             if (!in_array($status, $allowedStatuses, true)) {
                 throw new InvalidArgumentException('Status servis tidak valid.');
@@ -49,32 +74,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new InvalidArgumentException('Tanggal servis tidak valid.');
             }
 
+            $pdo->beginTransaction();
             $statement = $pdo->prepare(
                 'INSERT INTO service_records (vehicle_id, service_type_id, description, status, service_date, estimated_done, cost, completed_at)
                  VALUES (:vehicle_id, :service_type_id, :description, :status, :service_date, :estimated_done, :cost, :completed_at)'
             );
             $statement->execute([
                 'vehicle_id' => $vehicleId,
-                'service_type_id' => $serviceTypeId,
+                'service_type_id' => $serviceTypeIds[0],
                 'description' => trim((string) ($_POST['description'] ?? '')) ?: null,
                 'status' => $status,
                 'service_date' => $serviceDate,
                 'estimated_done' => $estimatedDone,
-                'cost' => max(0, (float) ($_POST['cost'] ?? 0)),
+                'cost' => $cost,
                 'completed_at' => in_array($status, $doneStatuses, true) ? date('Y-m-d H:i:s') : null,
             ]);
+            $serviceId = (int) $pdo->lastInsertId();
+            $insertType = $pdo->prepare('INSERT INTO service_record_types (service_record_id, service_type_id) VALUES (:service_id, :type_id)');
+            foreach ($serviceTypeIds as $serviceTypeId) {
+                $insertType->execute(['service_id' => $serviceId, 'type_id' => $serviceTypeId]);
+            }
+            $pdo->commit();
             flash('Catatan servis berhasil ditambahkan.');
         } elseif ($action === 'update_service') {
             $id = (int) ($_POST['service_id'] ?? 0);
-            $status = (string) ($_POST['status'] ?? '');
+            [$serviceTypeIds, $cost] = $getSelectedServiceTypes($pdo);
             $serviceDate = (string) ($_POST['service_date'] ?? '');
             $estimatedDone = $normalizeDateTime((string) ($_POST['estimated_done'] ?? ''));
-            $cost = max(0, (float) ($_POST['cost'] ?? 0));
             $description = trim((string) ($_POST['description'] ?? '')) ?: null;
 
             if ($id < 1) {
                 throw new InvalidArgumentException('Catatan servis tidak ditemukan.');
             }
+            $statement = $pdo->prepare('SELECT status, completed_at FROM service_records WHERE id = :id');
+            $statement->execute(['id' => $id]);
+            $existing = $statement->fetch();
+            if (!$existing) {
+                throw new InvalidArgumentException('Catatan servis tidak ditemukan.');
+            }
+            $status = (string) ($_POST['status'] ?? $existing['status']);
             if (!in_array($status, $allowedStatuses, true)) {
                 throw new InvalidArgumentException('Status servis tidak valid.');
             }
@@ -85,21 +123,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Waktu selesai aktual diisi saat status benar-benar selesai,
             // dan dikosongkan lagi bila pekerjaan dibuka ulang.
             if (in_array($status, $doneStatuses, true)) {
-                $statement = $pdo->prepare('SELECT completed_at FROM service_records WHERE id = :id');
-                $statement->execute(['id' => $id]);
-                $existing = $statement->fetchColumn();
-                $completedAt = $existing ?: date('Y-m-d H:i:s');
+                $completedAt = $existing['completed_at'] ?: date('Y-m-d H:i:s');
             } else {
                 $completedAt = null;
             }
 
+            $pdo->beginTransaction();
             $statement = $pdo->prepare(
                 'UPDATE service_records
-                 SET status = :status, service_date = :service_date, estimated_done = :estimated_done,
+                 SET service_type_id = :service_type_id, status = :status, service_date = :service_date, estimated_done = :estimated_done,
                      cost = :cost, description = :description, completed_at = :completed_at
                  WHERE id = :id'
             );
             $statement->execute([
+                'service_type_id' => $serviceTypeIds[0],
                 'status' => $status,
                 'service_date' => $serviceDate,
                 'estimated_done' => $estimatedDone,
@@ -108,6 +145,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'completed_at' => $completedAt,
                 'id' => $id,
             ]);
+            $pdo->prepare('DELETE FROM service_record_types WHERE service_record_id = :id')->execute(['id' => $id]);
+            $insertType = $pdo->prepare('INSERT INTO service_record_types (service_record_id, service_type_id) VALUES (:service_id, :type_id)');
+            foreach ($serviceTypeIds as $serviceTypeId) {
+                $insertType->execute(['service_id' => $id, 'type_id' => $serviceTypeId]);
+            }
+            $pdo->commit();
             flash('Catatan servis berhasil diperbarui.');
         } elseif ($action === 'save_progress' || $action === 'update_progress') {
             $id = (int) ($_POST['service_id'] ?? 0);
@@ -161,59 +204,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new InvalidArgumentException('Aksi tidak dikenali.');
         }
     } catch (InvalidArgumentException $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         flash($exception->getMessage(), 'error');
     } catch (PDOException $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         flash('Data gagal disimpan. Pastikan data terkait sudah terdaftar dan tidak duplikat.', 'error');
     }
     redirect('servis.php');
 }
 
-/** Filter pencarian dari formulir GET. */
-$filterStatus = (string) ($_GET['status'] ?? '');
-$filterPlate = strtoupper(trim((string) ($_GET['plate'] ?? '')));
-
-/**
- * Filter status pembayaran (US-07). Servis yang belum punya baris pembayaran
- * dianggap "Belum Dibayar" agar konsisten dengan halaman lain.
- */
-$allowedPaymentStatuses = payment_statuses();
-$filterPaymentStatus = (string) ($_GET['payment_status'] ?? '');
-
 $vehicles = $pdo->query(
-    'SELECT v.id, v.plate_number, v.brand, v.model, c.name AS customer_name
+    'SELECT v.id, v.customer_id, v.plate_number, v.brand, v.model, v.created_at, c.name AS customer_name
      FROM vehicles v JOIN customers c ON c.id = v.customer_id
-     ORDER BY v.plate_number'
+     ORDER BY v.created_at DESC, v.id DESC'
+)->fetchAll();
+$customers = $pdo->query(
+    'SELECT DISTINCT c.id, c.name, c.created_at
+     FROM customers c JOIN vehicles v ON v.customer_id = c.id
+     ORDER BY c.created_at DESC, c.id DESC'
 )->fetchAll();
 $serviceTypes = $pdo->query('SELECT id, name, description, base_price FROM service_types ORDER BY name')->fetchAll();
 
 $sql = 'SELECT sr.id, sr.vehicle_id, sr.service_type_id, sr.description, sr.status, sr.service_date, sr.estimated_done, sr.completed_at, sr.cost,
                COALESCE(p.status, "Belum Dibayar") AS payment_status,
-               v.plate_number, c.name AS customer_name, st.name AS service_name
+               v.plate_number, c.name AS customer_name,
+               COALESCE((SELECT GROUP_CONCAT(st_multi.name ORDER BY st_multi.name SEPARATOR ", ")
+                         FROM service_record_types srt_multi
+                         JOIN service_types st_multi ON st_multi.id = srt_multi.service_type_id
+                         WHERE srt_multi.service_record_id = sr.id), st.name) AS service_name
         FROM service_records sr
         JOIN vehicles v ON v.id = sr.vehicle_id
         JOIN customers c ON c.id = v.customer_id
         LEFT JOIN service_types st ON st.id = sr.service_type_id
-        LEFT JOIN payments p ON p.service_record_id = sr.id';
-$where = [];
-$bindings = [];
-if (in_array($filterStatus, $allowedStatuses, true)) {
-    $where[] = 'sr.status = :status';
-    $bindings['status'] = $filterStatus;
-}
-if (in_array($filterPaymentStatus, $allowedPaymentStatuses, true)) {
-    $where[] = 'COALESCE(p.status, "Belum Dibayar") = :payment_status';
-    $bindings['payment_status'] = $filterPaymentStatus;
-}
-if ($filterPlate !== '') {
-    $where[] = 'REPLACE(UPPER(v.plate_number), " ", "") LIKE :plate';
-    $bindings['plate'] = '%' . str_replace(' ', '', $filterPlate) . '%';
-}
-if ($where) {
-    $sql .= ' WHERE ' . implode(' AND ', $where);
-}
+        LEFT JOIN payments p ON p.service_record_id = sr.id ';
 $sql .= ' ORDER BY sr.service_date DESC, sr.id DESC';
-$statement = $pdo->prepare($sql);
-$statement->execute($bindings);
+$statement = $pdo->query($sql);
 $records = $statement->fetchAll();
 
 /** Catatan servis yang sedang diedit (jika ada). */
@@ -230,7 +259,11 @@ if (isset($_GET['edit'])) {
         $find = $pdo->prepare(
             'SELECT sr.id, sr.vehicle_id, sr.service_type_id, sr.description, sr.status, sr.service_date, sr.estimated_done, sr.completed_at, sr.cost,
                     COALESCE(p.status, "Belum Dibayar") AS payment_status,
-                    v.plate_number, c.name AS customer_name, st.name AS service_name
+                    v.plate_number, c.name AS customer_name,
+                    COALESCE((SELECT GROUP_CONCAT(st_multi.name ORDER BY st_multi.name SEPARATOR ", ")
+                              FROM service_record_types srt_multi
+                              JOIN service_types st_multi ON st_multi.id = srt_multi.service_type_id
+                              WHERE srt_multi.service_record_id = sr.id), st.name) AS service_name
              FROM service_records sr
              JOIN vehicles v ON v.id = sr.vehicle_id
              JOIN customers c ON c.id = v.customer_id
@@ -240,6 +273,24 @@ if (isset($_GET['edit'])) {
         );
         $find->execute(['id' => $editId]);
         $editing = $find->fetch() ?: null;
+    }
+}
+
+/** Jenis servis yang terpilih saat catatan diedit, termasuk catatan lama. */
+$editingTypeIds = [];
+$editingCustomerId = 0;
+if ($editing) {
+    foreach ($vehicles as $vehicle) {
+        if ((int) $vehicle['id'] === (int) $editing['vehicle_id']) {
+            $editingCustomerId = (int) $vehicle['customer_id'];
+            break;
+        }
+    }
+    $selectedTypes = $pdo->prepare('SELECT service_type_id FROM service_record_types WHERE service_record_id = :id');
+    $selectedTypes->execute(['id' => (int) $editing['id']]);
+    $editingTypeIds = array_map('intval', $selectedTypes->fetchAll(PDO::FETCH_COLUMN));
+    if (!$editingTypeIds && !empty($editing['service_type_id'])) {
+        $editingTypeIds = [(int) $editing['service_type_id']];
     }
 }
 
@@ -263,7 +314,7 @@ require __DIR__ . '/../includes/header.php';
 ?>
 <div class="dashboard-shell">
 <?php require __DIR__ . '/includes/sidebar.php'; ?>
-<div class="dashboard-content">
+<div class="dashboard-content service-management-page">
     <div class="dashboard-topline">
         <div>
             <span class="eyebrow">MANAJEMEN PEKERJAAN</span>
@@ -278,7 +329,7 @@ require __DIR__ . '/../includes/header.php';
     <?php endif; ?>
 
     <!-- Form tambah / edit servis -->
-    <section class="admin-section" id="form-servis">
+    <section class="admin-section service-entry-section" id="form-servis">
         <div class="section-heading">
             <div><span class="eyebrow"><?= $editing ? 'UBAH CATATAN' : 'CATATAN BARU' ?></span><h2><?= $editing ? 'Edit catatan servis' : 'Tambah catatan servis' ?></h2></div>
             <?php if ($editing): ?><a class="button button-ghost button-sm" href="servis.php">Batal edit</a><?php endif; ?>
@@ -292,54 +343,64 @@ require __DIR__ . '/../includes/header.php';
                 <input type="hidden" name="action" value="<?= $editing ? 'update_service' : 'save_service' ?>">
                 <?php if ($editing): ?><input type="hidden" name="service_id" value="<?= (int) $editing['id'] ?>"><?php endif; ?>
 
+                <div class="service-selection-grid">
+                    <div class="service-vehicle-field">
+                        <div class="service-field">
+                            <label for="service-customer">PELANGGAN</label>
+                            <select class="text-input" id="service-customer" data-service-customer>
+                                <option value="">Pilih pelanggan (opsional)</option>
+                                <?php foreach ($customers as $customer): ?>
+                                    <option value="<?= (int) $customer['id'] ?>" <?= $editingCustomerId === (int) $customer['id'] ? 'selected' : '' ?>>
+                                        <?= e($customer['name']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="service-field">
+                            <label for="service-vehicle">NOMOR POLISI <span aria-hidden="true">*</span></label>
+                            <select class="text-input" id="service-vehicle" name="vehicle_id" data-service-vehicle required>
+                                <option value="">Pilih nomor polisi</option>
+                                <?php foreach ($vehicles as $vehicle): ?>
+                                    <option value="<?= (int) $vehicle['id'] ?>" data-customer-id="<?= (int) $vehicle['customer_id'] ?>" <?= $editing && (int) $editing['vehicle_id'] === (int) $vehicle['id'] ? 'selected' : '' ?>>
+                                        <?= e($vehicle['plate_number']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <fieldset class="service-type-options" data-service-type-options>
+                        <legend>JENIS SERVIS *</legend>
+                        <?php foreach ($serviceTypes as $type): ?>
+                            <label class="service-type-option">
+                                <input type="checkbox" name="service_type_ids[]" value="<?= (int) $type['id'] ?>" data-service-price="<?= e($type['base_price']) ?>" <?= in_array((int) $type['id'], $editingTypeIds, true) ? 'checked' : '' ?>>
+                                <span><?= e($type['name']) ?></span>
+                                <strong><?= rupiah($type['base_price']) ?></strong>
+                            </label>
+                        <?php endforeach; ?>
+                    </fieldset>
+                </div>
+
                 <div class="form-grid">
-                    <div>
-                        <label>KENDARAAN *</label>
-                        <select class="text-input" name="vehicle_id" required>
-                            <option value="">Pilih nomor polisi</option>
-                            <?php foreach ($vehicles as $vehicle): ?>
-                                <option value="<?= (int) $vehicle['id'] ?>" <?= $editing && (int) $editing['vehicle_id'] === (int) $vehicle['id'] ? 'selected' : '' ?>>
-                                    <?= e($vehicle['plate_number'] . ' · ' . $vehicle['customer_name']) ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div>
-                        <label>JENIS SERVIS *</label>
-                        <select class="text-input" name="service_type_id" required>
-                            <option value="">Pilih jenis servis</option>
-                            <?php foreach ($serviceTypes as $type): ?>
-                                <option value="<?= (int) $type['id'] ?>" <?= $editing && (int) $editing['service_type_id'] === (int) $type['id'] ? 'selected' : '' ?>>
-                                    <?= e($type['name']) ?> · <?= rupiah($type['base_price']) ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div>
+                    <div class="service-field">
                         <label>TANGGAL SERVIS</label>
                         <input class="text-input" type="date" name="service_date" value="<?= e($editing['service_date'] ?? date('Y-m-d')) ?>" required>
                     </div>
-                    <div>
+                    <div class="service-field">
                         <label>PERKIRAAN SELESAI</label>
                         <input class="text-input" type="datetime-local" name="estimated_done" value="<?= e($editing && $editing['estimated_done'] ? date('Y-m-d\TH:i', strtotime($editing['estimated_done'])) : '') ?>">
                         <small class="text-muted">Kosongkan bila waktu selesai belum dapat dipastikan.</small>
                     </div>
-                    <div>
-                        <label>BIAYA (RP)</label>
-                        <input class="text-input" type="number" min="0" step="1000" name="cost" value="<?= e((string) ($editing['cost'] ?? '0')) ?>">
-                    </div>
-                    <div>
-                        <label>STATUS</label>
-                        <select class="text-input" name="status">
-                            <?php foreach ($allowedStatuses as $status): ?>
-                                <option <?= ($editing['status'] ?? 'Menunggu Pemeriksaan') === $status ? 'selected' : '' ?>><?= e($status) ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                    <div class="service-field service-total-field">
+                        <label for="service-total">TOTAL BIAYA</label>
+                        <input class="text-input" id="service-total" type="text" value="<?= e(rupiah($editing['cost'] ?? 0)) ?>" data-service-total readonly>
+                        <small class="text-muted">Otomatis dihitung dari harga jenis servis yang dipilih.</small>
                     </div>
                 </div>
 
-                <label>CATATAN / KELUHAN PEKERJAAN</label>
-                <textarea class="text-input" name="description" rows="2" placeholder="Contoh: rem dek bunyi, ganti kampas"><?= e($editing['description'] ?? '') ?></textarea>
+                <div class="service-field">
+                    <label>CATATAN / KELUHAN PEKERJAAN</label>
+                    <textarea class="text-input" name="description" rows="2" placeholder="Contoh: rem dek bunyi, ganti kampas"><?= e($editing['description'] ?? '') ?></textarea>
+                </div>
 
                 <button class="button button-primary" type="submit"><?= $editing ? 'Simpan perubahan' : 'Simpan servis' ?> <?= icon('arrow-right') ?></button>
             </form>
@@ -410,37 +471,11 @@ require __DIR__ . '/../includes/header.php';
     <?php endif; ?>
 
     <!-- Filter -->
-    <section class="admin-section">
+    <section class="admin-section service-records-section">
         <div class="section-heading">
             <div><span class="eyebrow">DAFTAR SERVIS</span><h2>Semua catatan servis</h2></div>
+            <span class="count-chip"><?= count($records) ?> catatan</span>
         </div>
-
-        <form class="filter-bar" method="get">
-            <div class="filter-item">
-                <label for="filter-plate">NOMOR POLISI</label>
-                <input class="text-input" id="filter-plate" name="plate" value="<?= e($filterPlate) ?>" placeholder="Cari polisi...">
-            </div>
-            <div class="filter-item">
-                <label for="filter-status">STATUS</label>
-                <select class="text-input" id="filter-status" name="status">
-                    <option value="">Semua status</option>
-                    <?php foreach ($allowedStatuses as $status): ?>
-                        <option value="<?= e($status) ?>" <?= $filterStatus === $status ? 'selected' : '' ?>><?= e($status) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="filter-item">
-                <label for="filter-payment-status">STATUS PEMBAYARAN</label>
-                <select class="text-input" id="filter-payment-status" name="payment_status">
-                    <option value="">Semua status</option>
-                    <?php foreach ($allowedPaymentStatuses as $paymentStatus): ?>
-                        <option value="<?= e($paymentStatus) ?>" <?= $filterPaymentStatus === $paymentStatus ? 'selected' : '' ?>><?= e($paymentStatus) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <button class="button button-navy button-sm" type="submit">Filter</button>
-            <a class="button button-ghost button-sm" href="servis.php">Reset</a>
-        </form>
 
         <div class="table-wrap">
             <table>
@@ -465,20 +500,20 @@ require __DIR__ . '/../includes/header.php';
                             <td><span class="status-badge <?= status_class($record['payment_status']) ?>"><?= e($record['payment_status']) ?></span></td>
                             <td><span class="status-badge <?= status_class($record['status']) ?>"><?= e($record['status']) ?></span></td>
                             <td>
-                                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                                <div class="service-row-actions">
                                     <a class="text-button" href="servis.php?edit=<?= (int) $record['id'] ?>#form-servis"><?= icon('pencil') ?> Edit</a>
                                     <form method="post" data-confirm="Hapus catatan servis ini?">
                                         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                                         <input type="hidden" name="action" value="delete_service">
                                         <input type="hidden" name="service_id" value="<?= (int) $record['id'] ?>">
-                                        <button class="text-button" type="submit" style="color:var(--red)"><?= icon('trash-2') ?> Hapus</button>
+                                        <button class="text-button service-delete-action" type="submit"><?= icon('trash-2') ?> Hapus</button>
                                     </form>
                                 </div>
                             </td>
                         </tr>
                     <?php endforeach; ?>
                     <?php if (!$records): ?>
-                        <tr><td colspan="7" class="table-empty">Belum ada catatan servis<?= $filterStatus || $filterPlate || $filterPaymentStatus ? ' untuk filter ini' : '' ?>.</td></tr>
+                        <tr><td colspan="7" class="table-empty">Belum ada catatan servis.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>

@@ -24,7 +24,7 @@ Sistem informasi bengkel online: admin mengelola pelanggan, kendaraan, antrean s
 ### Admin (`backend/admin/`)
 - Login username + password (hash `password_verify`, sesi di-regenerate, CSRF pada semua form).
 - `dashboard.php` — statistik pelanggan, kendaraan, servis aktif, pendapatan hari ini, tunggakan, stok; ubah status antrean.
-- `servis.php` — tambah/ubah/hapus catatan servis + jenis layanan, catatan perkembangan, pencarian, filter status pengerjaan & status pembayaran (Belum Dibayar/Menunggu Verifikasi/Lunas/Ditolak) dan plat.
+- `servis.php` — tambah/ubah/hapus catatan servis dengan beberapa jenis servis sekaligus dan total biaya otomatis dari harga katalog + jenis layanan, catatan perkembangan, pencarian, filter status pengerjaan & status pembayaran (Belum Dibayar/Menunggu Verifikasi/Lunas/Ditolak) dan plat.
 - `riwayat.php` — riwayat servis per kendaraan + atur/hapus PIN akses (4–6 digit, berlaku terbatas).
 - `pelanggan.php` — pelanggan, kendaraan, pembayaran.
 - `stok.php` — barang masuk/keluar, stok minimum.

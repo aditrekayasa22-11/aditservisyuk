@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="sy-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#163454" />
+      <stop offset="100%" stop-color="#09172a" />
+    </linearGradient>
+    <radialGradient id="sy-glow" cx="78%" cy="12%" r="50%">
+      <stop offset="0%" stop-color="#ff9742" stop-opacity="0.38" />
+      <stop offset="100%" stop-color="#163454" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="sy-wrench-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffac59" />
+      <stop offset="100%" stop-color="#f05b1b" />
+    </linearGradient>
+    <clipPath id="sy-clip">
+      <rect x="0" y="0" width="64" height="64" rx="19" ry="19" />
+    </clipPath>
+  </defs>
+
+  <!-- Background with rounded square -->
+  <rect x="0" y="0" width="64" height="64" rx="19" ry="19" fill="url(#sy-bg)" />
+  <rect x="0" y="0" width="64" height="64" rx="19" ry="19" fill="url(#sy-glow)" />
+  <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="18.25" ry="18.25" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" />
+
+  <!-- Orbit ring in top right (clipped) -->
+  <g clip-path="url(#sy-clip)">
+    <circle cx="60" cy="4" r="28" fill="none" stroke="rgba(255,154,80,0.5)" stroke-width="2" />
+    <circle cx="60" cy="4" r="34" fill="none" stroke="rgba(255,154,80,0.12)" stroke-width="6" />
+    <!-- Small orange accent dash on bottom left -->
+    <rect x="10" y="54" width="12" height="3" rx="1.5" fill="#ff974a" />
+  </g>
+
+  <!-- Main Bike Icon (Lucide Bike) -->
+  <g transform="translate(7, 8) scale(1.7)" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="18.5" cy="17.5" r="3.5" />
+    <circle cx="5.5" cy="17.5" r="3.5" />
+    <circle cx="15" cy="5" r="1" fill="#ffffff" />
+    <path d="M12 17.5V14l-3-3 4-3 2 3h2" />
+  </g>
+
+  <!-- Mini Wrench Badge in bottom-right corner -->
+  <g transform="translate(37, 37)">
+    <!-- Badge Container with border -->
+    <rect x="0" y="0" width="24" height="24" rx="8" ry="8" fill="url(#sy-wrench-bg)" stroke="#10223a" stroke-width="2.5" />
+    <!-- Wrench Icon (Lucide Wrench) -->
+    <g transform="translate(4, 4) scale(0.66)" fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z" />
+    </g>
+  </g>
+</svg>

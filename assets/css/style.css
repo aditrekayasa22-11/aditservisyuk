@@ -248,6 +248,10 @@ select.text-input {
 }
 .input-password { position: relative; }
 .input-password .text-input { padding-right: 46px; }
+.input-password .text-input::-ms-reveal,
+.input-password .text-input::-ms-clear {
+    display: none !important;
+}
 .password-toggle {
     position: absolute; top: 50%; right: 8px; transform: translateY(-50%);
     display: inline-flex; align-items: center; justify-content: center;
@@ -255,6 +259,7 @@ select.text-input {
     border: 0; border-radius: var(--radius-sm);
     background: transparent; color: var(--slate-400);
     cursor: pointer; transition: color .18s ease, background-color .18s ease;
+    z-index: 2;
 }
 .password-toggle:hover { color: var(--orange-600); background: var(--slate-200); }
 .password-toggle:focus-visible { outline: none; color: var(--orange-600); box-shadow: var(--ring); }

@@ -134,7 +134,10 @@ function vehicle_services(PDO $pdo, int $vehicleId): array
     $statement = $pdo->prepare(
         'SELECT sr.id, sr.description, sr.status, sr.service_date, sr.cost,
                 sr.estimated_done, sr.completed_at,
-                st.name AS service_name,
+                COALESCE((SELECT GROUP_CONCAT(st_multi.name ORDER BY st_multi.name SEPARATOR ", ")
+                          FROM service_record_types srt_multi
+                          JOIN service_types st_multi ON st_multi.id = srt_multi.service_type_id
+                          WHERE srt_multi.service_record_id = sr.id), st.name) AS service_name,
                 p.id AS payment_id, p.status AS payment_status, p.amount AS payment_amount,
                 p.proof_path, p.verified_at, p.method AS payment_method
          FROM service_records sr
@@ -298,7 +301,7 @@ function require_customer(): array
 {
     $session = customer_session();
     if ($session === null) {
-        redirect('login-pelanggan.php');
+        redirect('cek-status.php');
     }
     return $session;
 }

@@ -4,6 +4,12 @@ require_once __DIR__ . '/../includes/functions.php';
 require_admin();
 
 $pdo = db();
+$filterCustomer = trim((string) ($_GET['customer'] ?? ''));
+$customerOrder = (string) ($_GET['customer_order'] ?? 'newest');
+if (!in_array($customerOrder, ['newest', 'oldest'], true)) {
+    $customerOrder = 'newest';
+}
+$customerOrderSql = $customerOrder === 'oldest' ? 'ASC' : 'DESC';
 
 /**
  * Aksi di dashboard: memperbarui status servis langsung dari daftar antrean.
@@ -29,7 +35,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (PDOException $exception) {
         flash('Perubahan gagal disimpan.', 'error');
     }
-    redirect('dashboard.php');
+    redirect('dashboard.php?' . http_build_query([
+        'customer' => $filterCustomer,
+        'customer_order' => $customerOrder,
+    ]));
 }
 
 /** Statistik ringkas untuk kartu di bagian atas (US-02). */
@@ -50,23 +59,43 @@ $lowStock = $pdo->query(
     'SELECT name, quantity, unit FROM inventory WHERE quantity <= 5 ORDER BY quantity ASC, name ASC LIMIT 5'
 )->fetchAll();
 
-/** Antrean servis: pekerjaan yang belum selesai, terbaru di atas. */
-$queue = $pdo->query(
+/** Antrean servis: pekerjaan aktif milik pelanggan terbaru ditampilkan lebih dulu. */
+$queueSql =
     "SELECT sr.id, sr.service_date, sr.status, sr.cost, sr.description, sr.estimated_done,
             v.plate_number, v.brand, v.model, c.name AS customer_name, c.phone,
-            st.name AS service_name
+            COALESCE((SELECT GROUP_CONCAT(st_multi.name ORDER BY st_multi.name SEPARATOR ', ')
+                      FROM service_record_types srt_multi
+                      JOIN service_types st_multi ON st_multi.id = srt_multi.service_type_id
+                      WHERE srt_multi.service_record_id = sr.id), st.name) AS service_name
      FROM service_records sr
      JOIN vehicles v ON v.id = sr.vehicle_id
      JOIN customers c ON c.id = v.customer_id
      LEFT JOIN service_types st ON st.id = sr.service_type_id
-     WHERE sr.status IN ('Menunggu Pemeriksaan','Sedang Diperbaiki','Menunggu Suku Cadang')
-     ORDER BY sr.service_date ASC, sr.id ASC"
-)->fetchAll();
+     WHERE sr.status IN ('Menunggu Pemeriksaan','Sedang Diperbaiki','Menunggu Suku Cadang')";
+$queueBindings = [];
+if ($filterCustomer !== '') {
+    $queueSql .= ' AND (c.name LIKE :customer_name OR c.phone LIKE :customer_phone OR c.email LIKE :customer_email OR v.plate_number LIKE :customer_plate)';
+    $searchTerm = '%' . $filterCustomer . '%';
+    $queueBindings = [
+        'customer_name' => $searchTerm,
+        'customer_phone' => $searchTerm,
+        'customer_email' => $searchTerm,
+        'customer_plate' => $searchTerm,
+    ];
+}
+$queueSql .= ' ORDER BY c.created_at ' . $customerOrderSql . ', c.id ' . $customerOrderSql . ', sr.service_date ASC, sr.id ASC';
+$queueStatement = $pdo->prepare($queueSql);
+$queueStatement->execute($queueBindings);
+$queue = $queueStatement->fetchAll();
 
 /** Aktivitas terakhir. */
 $recent = $pdo->query(
     "SELECT sr.id, sr.service_date, sr.status, sr.cost,
-            v.plate_number, c.name AS customer_name, st.name AS service_name
+            v.plate_number, c.name AS customer_name,
+            COALESCE((SELECT GROUP_CONCAT(st_multi.name ORDER BY st_multi.name SEPARATOR ', ')
+                      FROM service_record_types srt_multi
+                      JOIN service_types st_multi ON st_multi.id = srt_multi.service_type_id
+                      WHERE srt_multi.service_record_id = sr.id), st.name) AS service_name
      FROM service_records sr
      JOIN vehicles v ON v.id = sr.vehicle_id
      JOIN customers c ON c.id = v.customer_id
@@ -139,8 +168,26 @@ require __DIR__ . '/../includes/header.php';
             <span class="count-chip"><?= count($queue) ?> antrean</span>
         </div>
 
+        <form class="filter-bar" method="get">
+            <div class="filter-item">
+                <label for="queue-customer">CARI PELANGGAN</label>
+                <input class="text-input" id="queue-customer" name="customer" value="<?= e($filterCustomer) ?>" placeholder="Nama, telepon, email, atau nomor polisi">
+            </div>
+            <div class="filter-item">
+                <label for="queue-customer-order">URUTAN PENDAFTARAN</label>
+                <select class="text-input" id="queue-customer-order" name="customer_order">
+                    <option value="newest" <?= $customerOrder === 'newest' ? 'selected' : '' ?>>Terbaru</option>
+                    <option value="oldest" <?= $customerOrder === 'oldest' ? 'selected' : '' ?>>Terlama</option>
+                </select>
+            </div>
+            <button class="button button-primary" type="submit"><?= icon('search') ?> Cari</button>
+            <?php if ($filterCustomer !== '' || $customerOrder !== 'newest'): ?>
+                <a class="button button-ghost" href="dashboard.php">Reset</a>
+            <?php endif; ?>
+        </form>
+
         <?php if (!$queue): ?>
-            <div class="empty-state">Tidak ada servis dalam antrean. Semua pekerjaan sudah selesai.</div>
+            <div class="empty-state"><?= $filterCustomer !== '' ? 'Tidak ada antrean yang cocok dengan pencarian pelanggan.' : 'Tidak ada servis dalam antrean. Semua pekerjaan sudah selesai.' ?></div>
         <?php else: ?>
             <div class="table-wrap">
                 <table>

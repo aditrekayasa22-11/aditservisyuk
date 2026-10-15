@@ -56,7 +56,7 @@ require __DIR__ . '/backend/includes/header.php';
             <p class="hero-description">Pantau status pengerjaan, keluhan, estimasi biaya, dan riwayat servis kendaraan Anda kapan saja — cukup dengan nomor polisi, tanpa perlu membuat akun.</p>
 
             <div class="hero-actions">
-                <a class="button button-primary" href="cek-status.php">Cek Status Servis <?= icon('arrow-right') ?></a>
+                <a class="button button-primary" href="login-pelanggan.php">Login Pelanggan <?= icon('arrow-right') ?></a>
                 <a class="button button-ghost button-ghost-light" href="#layanan">Lihat Layanan</a>
             </div>
 
@@ -154,7 +154,7 @@ require __DIR__ . '/backend/includes/header.php';
         </div>
 
         <div class="process-action reveal">
-            <a class="button button-navy" href="cek-status.php">Cek Status Servis Anda <?= icon('arrow-right') ?></a>
+            <a class="button button-navy" href="login-pelanggan.php">Login untuk Pantau Servis Anda <?= icon('arrow-right') ?></a>
         </div>
     </div>
 </section>

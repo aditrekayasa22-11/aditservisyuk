@@ -84,7 +84,11 @@ $sql = 'SELECT p.id, p.service_record_id, p.amount, p.method, p.status, p.paid_a
                p.verified_at, p.verified_by, p.note,
                a.name AS verifier_name,
                sr.service_date, sr.description,
-               v.plate_number, c.name AS customer_name, st.name AS service_name
+               v.plate_number, c.name AS customer_name,
+               COALESCE((SELECT GROUP_CONCAT(st_multi.name ORDER BY st_multi.name SEPARATOR ", ")
+                         FROM service_record_types srt_multi
+                         JOIN service_types st_multi ON st_multi.id = srt_multi.service_type_id
+                         WHERE srt_multi.service_record_id = sr.id), st.name) AS service_name
         FROM payments p
         JOIN service_records sr ON sr.id = p.service_record_id
         JOIN vehicles v ON v.id = sr.vehicle_id

@@ -10,7 +10,11 @@ function services_list_items(array $params): array
     $status = (string) ($params['status'] ?? '');
 
     $sql = 'SELECT sr.id, sr.vehicle_id, sr.service_type_id, sr.description, sr.status, sr.service_date, sr.cost, sr.created_at,
-                   v.plate_number, c.name AS customer_name, st.name AS service_name,
+                   v.plate_number, c.name AS customer_name,
+                   COALESCE((SELECT GROUP_CONCAT(st_multi.name ORDER BY st_multi.name SEPARATOR ", ")
+                             FROM service_record_types srt_multi
+                             JOIN service_types st_multi ON st_multi.id = srt_multi.service_type_id
+                             WHERE srt_multi.service_record_id = sr.id), st.name) AS service_name,
                    p.status AS payment_status, p.amount AS payment_amount, p.method AS payment_method
             FROM service_records sr
             JOIN vehicles v ON v.id = sr.vehicle_id
@@ -69,7 +73,11 @@ function services_read(array $params): array
 {
     $statement = db()->prepare(
         'SELECT sr.id, sr.vehicle_id, sr.service_type_id, sr.description, sr.status, sr.service_date, sr.cost, sr.created_at,
-                v.plate_number, c.name AS customer_name, st.name AS service_name
+                v.plate_number, c.name AS customer_name,
+                COALESCE((SELECT GROUP_CONCAT(st_multi.name ORDER BY st_multi.name SEPARATOR ", ")
+                          FROM service_record_types srt_multi
+                          JOIN service_types st_multi ON st_multi.id = srt_multi.service_type_id
+                          WHERE srt_multi.service_record_id = sr.id), st.name) AS service_name
          FROM service_records sr
          JOIN vehicles v ON v.id = sr.vehicle_id
          JOIN customers c ON c.id = v.customer_id

@@ -248,6 +248,10 @@ select.text-input {
 }
 .input-password { position: relative; }
 .input-password .text-input { padding-right: 46px; }
+.input-password .text-input::-ms-reveal,
+.input-password .text-input::-ms-clear {
+    display: none !important;
+}
 .password-toggle {
     position: absolute; top: 50%; right: 8px; transform: translateY(-50%);
     display: inline-flex; align-items: center; justify-content: center;
@@ -255,6 +259,7 @@ select.text-input {
     border: 0; border-radius: var(--radius-sm);
     background: transparent; color: var(--slate-400);
     cursor: pointer; transition: color .18s ease, background-color .18s ease;
+    z-index: 2;
 }
 .password-toggle:hover { color: var(--orange-600); background: var(--slate-200); }
 .password-toggle:focus-visible { outline: none; color: var(--orange-600); box-shadow: var(--ring); }
@@ -777,6 +782,7 @@ select.text-input {
 .form-card h3 { margin-bottom: 16px; }
 .admin-form > * + * { margin-top: 16px; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 16px; }
+.service-selection-grid { display: grid; grid-template-columns: minmax(215px, .9fr) minmax(280px, 1.1fr); gap: 16px; align-items: start; }
 
 .table-wrap { overflow-x: auto; border: 1px solid var(--slate-200); border-radius: var(--radius); }
 table { width: 100%; border-collapse: collapse; background: var(--white); font-size: .9rem; }
@@ -803,8 +809,57 @@ tbody tr:hover { background: var(--paper); }
 .status-select:focus { outline: none; box-shadow: var(--ring); }
 .inline-status { display: flex; gap: 6px; }
 .inline-stock-form { display: flex; align-items: center; gap: 8px; }
+.service-type-options { min-width: 0; padding: 0; border: 0; }
+.service-type-options legend { margin-bottom: 8px; font-size: .72rem; font-weight: 800; letter-spacing: .08em; color: var(--navy-800); }
+.service-type-option { display: flex; align-items: center; gap: 10px; min-height: 46px; margin-top: 8px; padding: 10px 12px; background: var(--white); border: 1px solid var(--slate-200); border-radius: var(--radius-sm); cursor: pointer; }
+.service-type-option:has(input:checked) { border-color: var(--orange-400); background: #fff8f1; }
+.service-type-option input { accent-color: var(--orange-500); }
+.service-type-option span { flex: 1; }
+.service-type-option strong { color: var(--navy-800); font-size: .88rem; white-space: nowrap; }
 .inline-stock-form .text-input { width: 84px; padding: 7px 9px; }
 form { margin: 0; }
+
+.service-management-page .admin-section { border-radius: 18px; }
+.service-management-page .service-entry-section { padding: 26px; }
+.service-management-page .service-entry-section .form-card { background: #fff; border: 0; padding: 4px 2px 2px; }
+.service-management-page .service-selection-grid { grid-template-columns: minmax(220px, .78fr) minmax(320px, 1.22fr); gap: 24px; }
+.service-management-page .service-vehicle-field { display: grid; gap: 14px; padding: 18px; background: var(--paper); border: 1px solid var(--slate-200); border-radius: var(--radius); }
+.service-management-page .service-field { min-width: 0; }
+.service-management-page .service-field label { display: block; margin-bottom: 7px; }
+.service-management-page .service-field small { display: block; margin-top: 6px; line-height: 1.5; }
+.service-management-page .service-vehicle-field .text-input { min-height: 46px; background-color: #fff; }
+.service-management-page .service-entry-section .form-grid { gap: 18px; margin-top: 22px; }
+.service-management-page .service-type-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; }
+.service-management-page .service-type-options legend { grid-column: 1 / -1; margin-bottom: 3px; }
+.service-management-page .service-type-option { margin: 0 0 6px; min-height: 48px; }
+.service-management-page .service-type-option:hover { border-color: var(--orange-300); }
+.service-management-page .service-type-option:has(input:checked) { box-shadow: 0 5px 14px rgba(249, 115, 22, .08); }
+.service-management-page .service-total-field .text-input { color: var(--navy-800); font-weight: 800; background: var(--paper); }
+.service-management-page .service-entry-section .button-primary { min-height: 46px; padding-inline: 22px; }
+.service-management-page .service-records-section { overflow: hidden; }
+.service-management-page .service-records-section .section-heading { padding-bottom: 16px; border-bottom: 1px solid var(--slate-200); }
+.service-management-page .service-row-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.service-management-page .service-delete-action { color: var(--red); }
+.service-management-page .service-delete-action:hover { color: var(--rose-600); }
+.service-management-page .service-records-section table { min-width: 820px; }
+.service-management-page .service-records-section tbody td { padding-block: 14px; }
+.service-management-page .service-records-section tbody td:first-child { white-space: nowrap; }
+.service-management-page .service-records-section tbody td:nth-child(2) strong { display: inline-block; padding: 4px 8px; color: var(--navy-800); background: var(--navy-100); border-radius: 6px; }
+.service-management-page .service-records-section tbody td:nth-child(4) { white-space: nowrap; font-weight: 700; color: var(--navy-800); }
+.service-management-page .service-records-section .status-badge { white-space: nowrap; }
+.service-management-page .service-records-section .table-wrap { border-color: #e5ebf4; }
+.service-management-page .dashboard-topline .date-chip { box-shadow: 0 5px 18px rgba(8, 21, 43, .08); }
+.service-management-page #form-servis .section-heading { margin-bottom: 22px; }
+.service-management-page .service-records-section thead th { padding-block: 15px; }
+.service-management-page .service-records-section tbody tr:last-child td { border-bottom: 0; }
+
+@media (max-width: 760px) {
+    .service-selection-grid { grid-template-columns: minmax(0, 1fr); }
+    .service-management-page .service-selection-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+    .service-management-page .service-type-options { grid-template-columns: 1fr; }
+    .service-management-page .service-vehicle-field { padding: 14px; }
+    .service-management-page .service-entry-section { padding: 20px; }
+}
 
 .mobile-brand { display: none; font-weight: 800; color: var(--navy-800); }
 .admin-footer { padding: 22px 34px; color: var(--slate-400); font-size: .82rem; border-top: 1px solid var(--slate-200); }

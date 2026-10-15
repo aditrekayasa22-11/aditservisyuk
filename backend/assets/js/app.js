@@ -68,6 +68,57 @@
         }
     }
 
+    /* --- 4a. Total biaya servis mengikuti pilihan jenis servis --- */
+    var serviceTypeOptions = document.querySelector('[data-service-type-options]');
+    var serviceTotal = document.querySelector('[data-service-total]');
+    if (serviceTypeOptions && serviceTotal) {
+        var servicePriceFormat = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 });
+        var updateServiceTotal = function () {
+            var total = 0;
+            serviceTypeOptions.querySelectorAll('input[type="checkbox"]:checked').forEach(function (input) {
+                total += Number(input.getAttribute('data-service-price')) || 0;
+            });
+            serviceTotal.value = 'Rp ' + servicePriceFormat.format(total);
+        };
+        serviceTypeOptions.addEventListener('change', updateServiceTotal);
+        updateServiceTotal();
+    }
+
+    /* --- 4b. Pemilihan kendaraan berdasarkan nama pelanggan atau nomor polisi --- */
+    var serviceCustomer = document.querySelector('[data-service-customer]');
+    var serviceVehicle = document.querySelector('[data-service-vehicle]');
+    if (serviceCustomer && serviceVehicle) {
+        var filterServiceVehicles = function () {
+            var customerId = serviceCustomer.value;
+            var matchingOptions = [];
+
+            serviceVehicle.querySelectorAll('option[data-customer-id]').forEach(function (option) {
+                var matchesCustomer = !customerId || option.getAttribute('data-customer-id') === customerId;
+                option.hidden = !matchesCustomer;
+                if (matchesCustomer) { matchingOptions.push(option); }
+            });
+
+            var selectedOption = serviceVehicle.options[serviceVehicle.selectedIndex];
+            if (selectedOption && selectedOption.hasAttribute('data-customer-id')
+                && selectedOption.getAttribute('data-customer-id') !== customerId && customerId) {
+                serviceVehicle.value = '';
+            }
+            if (customerId && matchingOptions.length === 1) {
+                serviceVehicle.value = matchingOptions[0].value;
+            }
+        };
+
+        serviceCustomer.addEventListener('change', filterServiceVehicles);
+        serviceVehicle.addEventListener('change', function () {
+            var selectedOption = serviceVehicle.options[serviceVehicle.selectedIndex];
+            if (selectedOption && selectedOption.hasAttribute('data-customer-id')) {
+                serviceCustomer.value = selectedOption.getAttribute('data-customer-id');
+                filterServiceVehicles();
+            }
+        });
+        filterServiceVehicles();
+    }
+
     /* --- 5. Konfirmasi sebelum form hapus dikirim --- */
     document.querySelectorAll('form[data-confirm]').forEach(function (form) {
         form.addEventListener('submit', function (event) {

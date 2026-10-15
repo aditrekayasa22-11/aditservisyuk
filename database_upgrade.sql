@@ -84,6 +84,19 @@ UPDATE service_records SET status = 'Menunggu Pemeriksaan' WHERE status = 'Menun
 UPDATE service_records SET status = 'Sedang Diperbaiki'  WHERE status = 'Dikerjakan';
 ALTER TABLE service_records MODIFY status ENUM('Menunggu Pemeriksaan','Sedang Diperbaiki','Menunggu Suku Cadang','Selesai','Siap Diambil','Dibatalkan') NOT NULL DEFAULT 'Menunggu Pemeriksaan';
 
+-- 4b. Jenis servis untuk satu catatan (mendukung lebih dari satu pilihan).
+CREATE TABLE IF NOT EXISTS service_record_types (
+    service_record_id INT UNSIGNED NOT NULL,
+    service_type_id INT UNSIGNED NOT NULL,
+    PRIMARY KEY (service_record_id, service_type_id),
+    KEY idx_service_record_types_type (service_type_id),
+    CONSTRAINT fk_service_record_types_record FOREIGN KEY (service_record_id) REFERENCES service_records(id) ON DELETE CASCADE,
+    CONSTRAINT fk_service_record_types_type FOREIGN KEY (service_type_id) REFERENCES service_types(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO service_record_types (service_record_id, service_type_id)
+SELECT id, service_type_id FROM service_records WHERE service_type_id IS NOT NULL;
+
 -- 5. Pembayaran (satu catatan servis satu baris pembayaran)
 --    Status: Belum Dibayar, Menunggu Verifikasi, Lunas, Ditolak.
 --    proof_path = berkas bukti transfer dari pelanggan.

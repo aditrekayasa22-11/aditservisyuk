@@ -31,7 +31,6 @@ $root = $adminView ? '../../' : '';
                     <li><a href="<?= $base ?>cek-status.php">Cek Status Servis</a></li>
                     <li><a href="<?= $base ?>index.php#layanan">Daftar Layanan</a></li>
                     <li><a href="<?= $base ?>index.php#keunggulan">Keunggulan</a></li>
-                    <li><a href="<?= $root ?>login-pelanggan.php">Login Pelanggan</a></li>
                     <li><a href="<?= $adminBase ?>login.php">Login Admin</a></li>
                 </ul>
             </div>

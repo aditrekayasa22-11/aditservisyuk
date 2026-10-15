@@ -42,7 +42,10 @@ function lookup_public(array $params): array
 
     $statement = $pdo->prepare(
         'SELECT sr.id, sr.description, sr.status, sr.service_date, sr.cost,
-                st.name AS service_name,
+                COALESCE((SELECT GROUP_CONCAT(st_multi.name ORDER BY st_multi.name SEPARATOR ", ")
+                          FROM service_record_types srt_multi
+                          JOIN service_types st_multi ON st_multi.id = srt_multi.service_type_id
+                          WHERE srt_multi.service_record_id = sr.id), st.name) AS service_name,
                 p.status AS payment_status
          FROM service_records sr
          LEFT JOIN service_types st ON st.id = sr.service_type_id

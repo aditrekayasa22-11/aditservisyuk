@@ -22,6 +22,8 @@ $showNavbar = !($adminView && !empty($_SESSION['admin_id']));
     <meta name="theme-color" content="#08152b">
     <meta name="description" content="ServisYuk - Pantau status servis kendaraan Anda dengan mudah cukup menggunakan nomor polisi.">
     <title><?= e($pageTitle) ?> | <?= APP_NAME ?></title>
+    <link rel="icon" type="image/svg+xml" href="<?= $base ?>assets/img/favicon.svg">
+    <link rel="alternate icon" href="<?= $base ?>assets/img/favicon.svg">
     <link rel="stylesheet" href="<?= $base ?>assets/css/style.css">
 </head>
 <body>
@@ -59,8 +61,7 @@ $showNavbar = !($adminView && !empty($_SESSION['admin_id']));
                 <li><a class="nav-link" href="<?= $base ?>index.php#alur">Alur Servis</a></li>
                 <li><a class="nav-link" href="<?= $base ?>index.php#kontak">Kontak</a></li>
                 <li class="nav-cta">
-                    <a class="button button-primary button-sm" href="<?= $base ?>cek-status.php">Cek Status Servis</a>
-                    <a class="nav-link <?= in_array($current, ['login-pelanggan.php', 'akun-pelanggan.php'], true) ? 'active' : '' ?>" href="<?= $root ?>login-pelanggan.php">Login Pelanggan</a>
+                    <a class="button button-primary button-sm" href="<?= $base ?>login-pelanggan.php">Login Pelanggan</a>
                     <a class="nav-link <?= $current === 'login.php' && $adminView ? 'active' : '' ?>" href="<?= $adminBase ?>login.php">Login Admin</a>
                 </li>
             <?php endif; ?>

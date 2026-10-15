@@ -58,6 +58,33 @@ function optionId(string $html, string $selectName, string $needle): int
     return 0;
 }
 
+/** Ambil pilihan checkbox jenis servis beserta harga dasar dari formulir. */
+function serviceTypeOptions(string $html): array
+{
+    preg_match_all('/<input type="checkbox" name="service_type_ids\[\]" value="(\d+)" data-service-price="([\d.]+)"[^>]*>.*?<span>(.*?)<\/span>/s', $html, $matches, PREG_SET_ORDER);
+    $options = [];
+    foreach ($matches as $match) {
+        $options[] = [
+            'id' => (int) $match[1],
+            'price' => (float) $match[2],
+            'name' => html_entity_decode(strip_tags($match[3]), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+        ];
+    }
+    return $options;
+}
+
+/** Ambil ID servis hanya dari baris yang memuat deskripsi unik data uji. */
+function serviceIdForDescription(string $html, string $description): int
+{
+    preg_match_all('/<tr\b[^>]*>.*?<\/tr>/s', $html, $rows);
+    foreach ($rows[0] as $row) {
+        if (str_contains($row, $description) && preg_match('/name="service_id" value="(\d+)"/', $row, $match)) {
+            return (int) $match[1];
+        }
+    }
+    return 0;
+}
+
 /** Semua nilai input tersembunyi bernama tertentu. */
 function hiddenValues(string $html, string $name): array
 {
@@ -99,29 +126,39 @@ check('Kendaraan baru tampil di daftar', str_contains($r['body'], 'UJI ADM 01'))
 $r = http('GET', $admin . '/servis.php');
 $csrf = csrfFrom($r['body']);
 $vehicleId = optionId($r['body'], 'vehicle_id', 'UJI ADM 01');
-$serviceTypeId = optionId($r['body'], 'service_type_id', 'Ganti oli');
+$serviceOptions = serviceTypeOptions($r['body']);
+$selectedServiceTypes = array_values(array_filter($serviceOptions, static fn (array $type): bool => in_array($type['name'], ['Ganti oli', 'Servis rem'], true)));
+$serviceTypeIds = array_column($selectedServiceTypes, 'id');
+$expectedServiceCost = array_sum(array_column($selectedServiceTypes, 'price'));
 check('Select kendaraan memuat kendaraan baru', $vehicleId > 0, "vehicle_id={$vehicleId}");
-check('Select jenis servis memuat katalog layanan', $serviceTypeId > 0, "service_type_id={$serviceTypeId}");
+check('Formulir memuat pilihan beberapa jenis servis', count($serviceTypeIds) === 2, 'jenis=' . count($serviceTypeIds));
 
 $r = http('POST', $admin . '/servis.php', [
     'csrf_token' => $csrf, 'action' => 'save_service',
-    'vehicle_id' => $vehicleId, 'service_type_id' => $serviceTypeId,
+    'vehicle_id' => $vehicleId, 'service_type_ids' => $serviceTypeIds,
     'description' => 'Rem bunyi saat pengereman, oli mesin berganti',
-    'status' => 'Menunggu', 'service_date' => date('Y-m-d'), 'cost' => '175000',
+    'status' => 'Menunggu Pemeriksaan', 'service_date' => date('Y-m-d'), 'cost' => '1',
 ]);
 check('Form tambah catatan servis', $r['status'] === 302);
 $r = http('GET', $admin . '/servis.php');
 check('Flash sukses servis tampil', str_contains($r['body'], 'Catatan servis berhasil ditambahkan.'));
-$serviceIds = array_values(array_filter(hiddenValues($r['body'], 'service_id')));
-$serviceId = $serviceIds[0] ?? 0;
+check('Jenis servis dan biaya otomatis tersimpan',
+    str_contains($r['body'], 'Ganti oli, Servis rem')
+    && str_contains($r['body'], 'Rp ' . number_format($expectedServiceCost, 0, ',', '.')));
+$serviceId = serviceIdForDescription($r['body'], 'Rem bunyi saat pengereman, oli mesin berganti');
 check('Catatan servis baru terdaftar', $serviceId > 0, 'service_id=' . $serviceId);
+$r = http('GET', $admin . '/servis.php?edit=' . $serviceId);
+preg_match_all('/<input type="checkbox" name="service_type_ids\[\]"[^>]* checked>/', $r['body'], $checkedTypes);
+check('Edit mempertahankan semua jenis servis dan total otomatis',
+    count($checkedTypes[0]) === 2
+    && str_contains($r['body'], 'value="Rp ' . number_format($expectedServiceCost, 0, ',', '.') . '" data-service-total readonly'));
 
 // --- Filter status & plat ---
-$r = http('GET', $admin . '/servis.php?status=Menunggu&plate=uji+adm');
+$r = http('GET', $admin . '/servis.php?status=Menunggu%20Pemeriksaan&plate=uji+adm');
 check('Filter status+plat menemukan catatan', str_contains($r['body'], 'oli mesin berganti'));
 // Pakai plat yang pasti tidak ada agar hasil kosong tetap teruji walau ada
 // data pelanggan asli lain di database (tidak bergantung pada DB kosong).
-$r = http('GET', $admin . '/servis.php?status=Dikerjakan&plate=uji+tidak+ada');
+$r = http('GET', $admin . '/servis.php?status=Sedang%20Diperbaiki&plate=uji+tidak+ada');
 check('Filter tanpa hasil menampilkan empty state',
     !str_contains($r['body'], 'oli mesin berganti') && str_contains($r['body'], 'table-empty'));
 
@@ -130,12 +167,15 @@ $r = http('GET', $admin . '/servis.php');
 $csrf = csrfFrom($r['body']);
 $r = http('POST', $admin . '/servis.php', [
     'csrf_token' => $csrf, 'action' => 'update_service', 'service_id' => $serviceId,
-    'status' => 'Dikerjakan', 'service_date' => date('Y-m-d'), 'cost' => '200000',
+    'service_type_ids' => $serviceTypeIds,
+    'status' => 'Sedang Diperbaiki', 'service_date' => date('Y-m-d'), 'cost' => '1',
     'description' => 'Rem bunyi saat pengereman, oli mesin berganti',
 ]);
-check('Form ubah status -> Dikerjakan', $r['status'] === 302);
-$r = http('GET', $admin . '/servis.php?status=Dikerjakan');
-check('Status Dikerjakan tampil setelah diubah', str_contains($r['body'], 'oli mesin berganti'));
+check('Form ubah status -> Sedang Diperbaiki', $r['status'] === 302);
+$r = http('GET', $admin . '/servis.php?status=Sedang%20Diperbaiki');
+check('Edit tetap menghitung total, tidak menerima biaya manual',
+    str_contains($r['body'], 'oli mesin berganti')
+    && str_contains($r['body'], 'Rp ' . number_format($expectedServiceCost, 0, ',', '.')));
 
 // --- Ubah status dari dashboard (antrean) ---
 $r = http('GET', $admin . '/dashboard.php');
@@ -156,7 +196,7 @@ $csrf = csrfFrom($r['body']);
 $r = http('POST', $admin . '/pelanggan.php', [
     'csrf_token' => $csrf, 'action' => 'save_payment',
     'payment_service_id' => $serviceId, 'payment_status' => 'Lunas',
-    'payment_method' => 'Tunai', 'amount' => '200000',
+    'payment_method' => 'Tunai', 'amount' => (string) $expectedServiceCost,
 ]);
 check('Form simpan pembayaran', $r['status'] === 302);
 $r = http('GET', $admin . '/pelanggan.php');
@@ -181,8 +221,8 @@ check('Nomor polisi duplikat ditolak', str_contains($r['body'], 'Data gagal disi
 
 $r = http('POST', $admin . '/servis.php', [
     'csrf_token' => $csrf, 'action' => 'save_service',
-    'vehicle_id' => 0, 'service_type_id' => $serviceTypeId,
-    'status' => 'Menunggu', 'service_date' => date('Y-m-d'), 'cost' => '1000',
+    'vehicle_id' => 0, 'service_type_ids' => $serviceTypeIds,
+    'status' => 'Menunggu Pemeriksaan', 'service_date' => date('Y-m-d'), 'cost' => '1000',
 ]);
 $r = http('GET', $admin . '/servis.php');
 check('Kendaraan tidak valid ditolak', str_contains($r['body'], 'Pilih kendaraan yang valid.'));

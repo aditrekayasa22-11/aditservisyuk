@@ -55,7 +55,6 @@ require __DIR__ . '/../includes/header.php';
             </div>
             <button class="button button-primary button-wide" type="submit"><?= icon('log-in') ?> Masuk ke dashboard <?= icon('arrow-right') ?></button>
         </form>
-        <p class="auth-alt">Belum punya akun admin? <a href="register.php">Daftar di sini</a></p>
         <a class="back-link" href="../index.php"><?= icon('arrow-left') ?> Kembali ke halaman utama</a>
     </div>
 </section>

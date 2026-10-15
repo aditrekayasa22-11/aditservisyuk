@@ -61,6 +61,15 @@ CREATE TABLE IF NOT EXISTS service_records (
  CONSTRAINT fk_service_records_type FOREIGN KEY (service_type_id) REFERENCES service_types(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS service_record_types (
+ service_record_id INT UNSIGNED NOT NULL,
+ service_type_id INT UNSIGNED NOT NULL,
+ PRIMARY KEY (service_record_id, service_type_id),
+ KEY idx_service_record_types_type (service_type_id),
+ CONSTRAINT fk_service_record_types_record FOREIGN KEY (service_record_id) REFERENCES service_records(id) ON DELETE CASCADE,
+ CONSTRAINT fk_service_record_types_type FOREIGN KEY (service_type_id) REFERENCES service_types(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS payments (
  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
  service_record_id INT UNSIGNED NOT NULL,
