@@ -127,4 +127,77 @@
             toggle.setAttribute('aria-pressed', show ? 'true' : 'false');
         });
     });
+
+    /* --- 9. Pemilihan Metode Pembayaran (Cash, QRIS, Bank BNI/BRI/BCA/Mandiri) --- */
+    document.querySelectorAll('.payment-form-interactive').forEach(function (form) {
+        var radios = form.querySelectorAll('input[type="radio"][name="payment_method"]');
+        var bankRadios = form.querySelectorAll('input[type="radio"][name="bank_choice"]');
+        var methodBoxes = form.querySelectorAll('[data-method-box]');
+        var bankBoxes = form.querySelectorAll('[data-bank-box]');
+        var proofSection = form.querySelector('.proof-upload-section');
+        var proofInput = form.querySelector('input[type="file"][name="proof"]');
+        var submitBtn = form.querySelector('.btn-submit-payment');
+
+        function updateMethod() {
+            var selected = form.querySelector('input[type="radio"][name="payment_method"]:checked');
+            var val = selected ? selected.value : 'Transfer';
+
+            methodBoxes.forEach(function (box) {
+                box.style.display = box.getAttribute('data-method-box') === val ? 'block' : 'none';
+            });
+
+            if (val === 'Tunai') {
+                if (proofSection) { proofSection.style.display = 'none'; }
+                if (proofInput) { proofInput.required = false; }
+                if (submitBtn) {
+                    submitBtn.innerHTML = '<svg class="icon"><use href="#ic-circle-check"></use></svg> Konfirmasi Pembayaran Tunai';
+                }
+            } else {
+                if (proofSection) { proofSection.style.display = 'block'; }
+                if (proofInput) { proofInput.required = true; }
+                if (submitBtn) {
+                    submitBtn.innerHTML = '<svg class="icon"><use href="#ic-upload"></use></svg> Kirim Bukti Pembayaran';
+                }
+            }
+        }
+
+        function updateBank() {
+            var selectedBank = form.querySelector('input[type="radio"][name="bank_choice"]:checked');
+            var bankCode = selectedBank ? selectedBank.value : 'bni';
+            bankBoxes.forEach(function (bBox) {
+                bBox.style.display = bBox.getAttribute('data-bank-box') === bankCode ? 'block' : 'none';
+            });
+        }
+
+        radios.forEach(function (r) {
+            r.addEventListener('change', updateMethod);
+        });
+
+        bankRadios.forEach(function (br) {
+            br.addEventListener('change', updateBank);
+        });
+
+        updateMethod();
+        updateBank();
+    });
+
+    /* --- 10. Tombol Salin Nomor Rekening --- */
+    document.querySelectorAll('.btn-copy-acc').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var text = btn.getAttribute('data-copy') || '';
+            if (navigator.clipboard && text) {
+                navigator.clipboard.writeText(text).then(function () {
+                    var original = btn.textContent;
+                    btn.textContent = 'Tersalin!';
+                    btn.style.borderColor = 'var(--green-600)';
+                    btn.style.color = 'var(--green-600)';
+                    window.setTimeout(function () {
+                        btn.textContent = original;
+                        btn.style.borderColor = '';
+                        btn.style.color = '';
+                    }, 2000);
+                });
+            }
+        });
+    });
 })();

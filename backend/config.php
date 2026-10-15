@@ -22,11 +22,38 @@ define('CUSTOMER_OTP_ENABLED', filter_var(getenv('CUSTOMER_OTP_ENABLED') ?: '0',
 define('CUSTOMER_SESSION_MINUTES', (int) (getenv('CUSTOMER_SESSION_MINUTES') ?: 60));
 
 /* --------------------------------------------------------------------------
-   Informasi rekening tujuan pembayaran transfer (US-11).
-   Ubah tiga nilai di bawah ini sesuai rekening resmi bengkel.
+   Informasi rekening tujuan pembayaran transfer & QRIS (US-11).
    -------------------------------------------------------------------------- */
-define('BANK_NAME', getenv('BANK_NAME') ?: 'Bank Contoh');
-define('BANK_ACCOUNT_NUMBER', getenv('BANK_ACCOUNT_NUMBER') ?: '0000000000');
+define('BANK_ACCOUNTS', [
+    'bni' => [
+        'name' => 'Bank BNI',
+        'account_number' => getenv('BANK_BNI_NUMBER') ?: '0238472910',
+        'account_name' => getenv('BANK_BNI_NAME') ?: 'Bengkel ServisYuk',
+    ],
+    'bri' => [
+        'name' => 'Bank BRI',
+        'account_number' => getenv('BANK_BRI_NUMBER') ?: '102938475610293',
+        'account_name' => getenv('BANK_BRI_NAME') ?: 'Bengkel ServisYuk',
+    ],
+    'bca' => [
+        'name' => 'Bank BCA',
+        'account_number' => getenv('BANK_BCA_NUMBER') ?: '8049281726',
+        'account_name' => getenv('BANK_BCA_NAME') ?: 'Bengkel ServisYuk',
+    ],
+    'mandiri' => [
+        'name' => 'Bank Mandiri',
+        'account_number' => getenv('BANK_MANDIRI_NUMBER') ?: '1370019283746',
+        'account_name' => getenv('BANK_MANDIRI_NAME') ?: 'Bengkel ServisYuk',
+    ],
+]);
+
+define('QRIS_MERCHANT_NAME', getenv('QRIS_MERCHANT_NAME') ?: 'ServisYuk Auto Service');
+define('QRIS_NMID', getenv('QRIS_NMID') ?: 'ID1020039281920');
+define('QRIS_IMAGE_PATH', getenv('QRIS_IMAGE_PATH') ?: 'assets/img/qris-servisyuk.svg');
+
+// Kompatibilitas konstanta lama
+define('BANK_NAME', getenv('BANK_NAME') ?: 'Bank BNI');
+define('BANK_ACCOUNT_NUMBER', getenv('BANK_ACCOUNT_NUMBER') ?: '0238472910');
 define('BANK_ACCOUNT_NAME', getenv('BANK_ACCOUNT_NAME') ?: 'Bengkel ServisYuk');
 
 /** Batas ukuran bukti transfer yang boleh diunggah pelanggan (byte). */

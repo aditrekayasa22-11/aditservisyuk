@@ -65,45 +65,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new InvalidArgumentException('Data servis tidak ditemukan.');
         }
 
-        $file = $_FILES['proof'] ?? null;
-        if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-            throw new RuntimeException('Pilih berkas bukti transfer terlebih dahulu.');
-        }
-        if ((int) $file['size'] > PAYMENT_PROOF_MAX_BYTES) {
-            throw new RuntimeException('Ukuran berkas melebihi 2 MB.');
-        }
-        $extension = strtolower((string) pathinfo((string) $file['name'], PATHINFO_EXTENSION));
-        if (!in_array($extension, PAYMENT_PROOF_EXTENSIONS, true)) {
-            throw new RuntimeException('Format berkas harus JPG, PNG, atau PDF.');
-        }
-        $mime = (string) (new finfo(FILEINFO_MIME_TYPE))->file((string) $file['tmp_name']);
-        if (!in_array($mime, ['image/jpeg', 'image/png', 'application/pdf'], true)) {
-            throw new RuntimeException('Isi berkas tidak sesuai format gambar atau PDF.');
+        $chosenMethod = (string) ($_POST['payment_method'] ?? 'Transfer');
+        $validMethods = ['Tunai', 'QRIS', 'Transfer'];
+        if (!in_array($chosenMethod, $validMethods, true)) {
+            $chosenMethod = 'Transfer';
         }
 
-        $directory = proof_storage_dir();
-        $name = 'proof-' . $serviceId . '-' . bin2hex(random_bytes(8)) . '.' . $extension;
-        if (!move_uploaded_file((string) $file['tmp_name'], $directory . '/' . $name)) {
-            throw new RuntimeException('Bukti transfer gagal disimpan. Coba lagi.');
-        }
+        $note = null;
+        $proofName = null;
 
-        $statement = $pdo->prepare(
-            "INSERT INTO payments (service_record_id, amount, method, status, proof_path, paid_at, verified_at, verified_by, note)
-             VALUES (:sid, :amount, 'Transfer', 'Menunggu Verifikasi', :proof, NULL, NULL, NULL, NULL)
-             ON DUPLICATE KEY UPDATE amount = VALUES(amount), method = 'Transfer', status = 'Menunggu Verifikasi',
-                 proof_path = VALUES(proof_path), paid_at = NULL, verified_at = NULL, verified_by = NULL, note = NULL"
-        );
-        $statement->execute([
-            'sid' => $serviceId,
-            'amount' => max(0, (float) $record['cost']),
-            'proof' => $name,
-        ]);
-        flash('Bukti transfer berhasil dikirim. Mohon tunggu verifikasi dari bengkel.');
+        if ($chosenMethod === 'Tunai') {
+            $note = 'Pembayaran Tunai di Kasir Bengkel';
+            $statement = $pdo->prepare(
+                "INSERT INTO payments (service_record_id, amount, method, status, proof_path, paid_at, verified_at, verified_by, note)
+                 VALUES (:sid, :amount, 'Tunai', 'Menunggu Verifikasi', NULL, NULL, NULL, NULL, :note)
+                 ON DUPLICATE KEY UPDATE amount = VALUES(amount), method = 'Tunai', status = 'Menunggu Verifikasi',
+                     proof_path = NULL, paid_at = NULL, verified_at = NULL, verified_by = NULL, note = VALUES(note)"
+            );
+            $statement->execute([
+                'sid' => $serviceId,
+                'amount' => max(0, (float) $record['cost']),
+                'note' => $note,
+            ]);
+            flash('Permintaan pembayaran Tunai dikirim. Silakan selesaikan pembayaran di kasir bengkel saat mengambil kendaraan.');
+        } else {
+            // QRIS atau Transfer Bank: wajib unggah bukti pembayaran
+            $bankChoice = strtolower(trim((string) ($_POST['bank_choice'] ?? 'bni')));
+            if ($chosenMethod === 'QRIS') {
+                $note = 'Pembayaran via QRIS (' . QRIS_MERCHANT_NAME . ')';
+            } else {
+                $bankAccounts = BANK_ACCOUNTS;
+                $bankInfo = $bankAccounts[$bankChoice] ?? $bankAccounts['bni'];
+                $note = 'Transfer ' . $bankInfo['name'] . ' (' . $bankInfo['account_number'] . ')';
+            }
+
+            $file = $_FILES['proof'] ?? null;
+            if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                throw new RuntimeException('Pilih berkas bukti pembayaran terlebih dahulu.');
+            }
+            if ((int) $file['size'] > PAYMENT_PROOF_MAX_BYTES) {
+                throw new RuntimeException('Ukuran berkas melebihi 2 MB.');
+            }
+            $extension = strtolower((string) pathinfo((string) $file['name'], PATHINFO_EXTENSION));
+            if (!in_array($extension, PAYMENT_PROOF_EXTENSIONS, true)) {
+                throw new RuntimeException('Format berkas harus JPG, PNG, atau PDF.');
+            }
+            $mime = (string) (new finfo(FILEINFO_MIME_TYPE))->file((string) $file['tmp_name']);
+            if (!in_array($mime, ['image/jpeg', 'image/png', 'application/pdf'], true)) {
+                throw new RuntimeException('Isi berkas tidak sesuai format gambar atau PDF.');
+            }
+
+            $directory = proof_storage_dir();
+            $proofName = 'proof-' . $serviceId . '-' . bin2hex(random_bytes(8)) . '.' . $extension;
+            if (!move_uploaded_file((string) $file['tmp_name'], $directory . '/' . $proofName)) {
+                throw new RuntimeException('Bukti pembayaran gagal disimpan. Coba lagi.');
+            }
+
+            $dbMethod = $chosenMethod === 'QRIS' ? 'QRIS' : 'Transfer';
+            $statement = $pdo->prepare(
+                "INSERT INTO payments (service_record_id, amount, method, status, proof_path, paid_at, verified_at, verified_by, note)
+                 VALUES (:sid, :amount, :method, 'Menunggu Verifikasi', :proof, NULL, NULL, NULL, :note)
+                 ON DUPLICATE KEY UPDATE amount = VALUES(amount), method = VALUES(method), status = 'Menunggu Verifikasi',
+                     proof_path = VALUES(proof_path), paid_at = NULL, verified_at = NULL, verified_by = NULL, note = VALUES(note)"
+            );
+            $statement->execute([
+                'sid' => $serviceId,
+                'amount' => max(0, (float) $record['cost']),
+                'method' => $dbMethod,
+                'proof' => $proofName,
+                'note' => $note,
+            ]);
+            flash('Bukti pembayaran ' . e($chosenMethod) . ' berhasil dikirim. Mohon tunggu verifikasi dari bengkel.');
+        }
     } catch (InvalidArgumentException | RuntimeException $exception) {
         flash($exception->getMessage(), 'error');
     } catch (PDOException $exception) {
         error_log('[ServisYuk unggah bukti] ' . $exception->getMessage());
-        flash('Bukti transfer gagal diproses. Coba lagi nanti.', 'error');
+        flash('Bukti pembayaran gagal diproses. Coba lagi nanti.', 'error');
     }
     redirect('akun-pelanggan.php');
 }
@@ -308,7 +346,7 @@ require __DIR__ . '/backend/includes/header.php';
                     <?php $payables = array_values(array_filter($services, static fn (array $s): bool => ($s['payment_status'] ?? 'Belum Dibayar') !== 'Lunas')); ?>
                     <div class="history-heading">
                         <h3>Tagihan &amp; Pembayaran</h3>
-                        <span>Transfer bank</span>
+                        <span>Pilih metode pembayaran</span>
                     </div>
                     <div class="detail-grid">
                         <div class="detail-item"><span>Total Tagihan</span><strong><?= rupiah($block['total_cost']) ?></strong></div>
@@ -316,32 +354,173 @@ require __DIR__ . '/backend/includes/header.php';
                     </div>
 
                     <?php if ($payables): ?>
-                        <div class="alert alert-warning" style="margin-top:8px">
-                            <?= icon('wallet') ?>
-                            <div>Transfer ke <strong><?= e(BANK_NAME) ?></strong> rekening <strong><?= e(BANK_ACCOUNT_NUMBER) ?></strong> a.n. <strong><?= e(BANK_ACCOUNT_NAME) ?></strong>, lalu unggah bukti transfer di bawah.</div>
-                        </div>
-                        <?php foreach ($payables as $service): ?>
-                            <form class="admin-form" method="post" enctype="multipart/form-data" style="margin-top:14px;border-top:1px solid var(--slate-200);padding-top:14px">
+                        <?php foreach ($payables as $service): 
+                            $currMethod = $service['payment_method'] ?? 'Transfer';
+                            if (!in_array($currMethod, ['Tunai', 'QRIS', 'Transfer'], true)) {
+                                $currMethod = 'Transfer';
+                            }
+                        ?>
+                            <form class="admin-form payment-form-interactive" method="post" enctype="multipart/form-data" style="margin-top:14px;border-top:1px solid var(--slate-200);padding-top:14px">
                                 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                                 <input type="hidden" name="action" value="upload_proof">
                                 <input type="hidden" name="service_id" value="<?= (int) $service['id'] ?>">
+
                                 <div class="detail-grid">
                                     <div class="detail-item"><span>Servis</span><strong><?= e($service['service_name'] ?: 'Servis kendaraan') ?></strong></div>
                                     <div class="detail-item"><span>Tanggal</span><strong><?= e(date('d M Y', strtotime($service['service_date']))) ?></strong></div>
-                                    <div class="detail-item"><span>Jumlah</span><strong><?= rupiah($service['cost']) ?></strong></div>
-                                    <div class="detail-item"><span>Status</span><strong><span class="status-badge <?= status_class($service['payment_status'] ?: 'Belum Dibayar') ?>"><?= e($service['payment_status'] ?: 'Belum Dibayar') ?></span></strong></div>
+                                    <div class="detail-item"><span>Jumlah Tagihan</span><strong style="color:var(--orange-600)"><?= rupiah($service['cost']) ?></strong></div>
+                                    <div class="detail-item"><span>Status Tagihan</span><strong><span class="status-badge <?= status_class($service['payment_status'] ?: 'Belum Dibayar') ?>"><?= e($service['payment_status'] ?: 'Belum Dibayar') ?></span></strong></div>
                                 </div>
+
                                 <?php if (($service['payment_status'] ?? '') === 'Menunggu Verifikasi'): ?>
-                                    <div class="alert alert-warning"><?= icon('clock') ?><div>Bukti transfer sudah dikirim dan sedang menunggu verifikasi dari bengkel.</div></div>
+                                    <div class="alert alert-warning"><?= icon('clock') ?><div>Pembayaran Anda (<strong><?= e($service['payment_method']) ?></strong>) sedang dalam proses verifikasi kasir bengkel.</div></div>
                                 <?php elseif (($service['payment_status'] ?? '') === 'Ditolak'): ?>
-                                    <div class="alert alert-error"><?= icon('circle-alert') ?><div>Bukti transfer sebelumnya ditolak. Silakan unggah ulang bukti yang benar.</div></div>
+                                    <div class="alert alert-error"><?= icon('circle-alert') ?><div>Bukti pembayaran sebelumnya ditolak. Silakan pilih kembali metode dan unggah bukti yang benar.</div></div>
                                 <?php endif; ?>
+
                                 <?php if ($service['proof_path']): ?>
-                                    <a class="text-button" href="akun-pelanggan.php?proof=<?= (int) $service['payment_id'] ?>" target="_blank" rel="noopener"><?= icon('eye') ?> Lihat bukti yang sudah dikirim</a>
+                                    <div style="margin-bottom:12px">
+                                        <a class="text-button" href="akun-pelanggan.php?proof=<?= (int) $service['payment_id'] ?>" target="_blank" rel="noopener"><?= icon('eye') ?> Lihat bukti pembayaran yang sudah dikirim</a>
+                                    </div>
                                 <?php endif; ?>
-                                <label>UNGGAH BUKTI TRANSFER (JPG/PNG/PDF, MAKS 2 MB)</label>
-                                <input class="text-input" type="file" name="proof" accept=".jpg,.jpeg,.png,.pdf" required>
-                                <button class="button button-primary button-sm" type="submit" style="margin-top:12px"><?= icon('upload') ?> Kirim bukti transfer</button>
+
+                                <div class="payment-selector-wrap">
+                                    <label style="margin-bottom:4px">PILIH METODE PEMBAYARAN</label>
+                                    <p class="text-muted" style="font-size:.84rem;margin-bottom:12px">Pilih pembayaran langsung (Cash), scan kode QRIS, atau transfer ke rekening resmi bengkel.</p>
+                                    
+                                    <div class="payment-methods-grid">
+                                        <!-- Opsi 1: Cash / Tunai -->
+                                        <label class="method-choice">
+                                            <input type="radio" name="payment_method" value="Tunai" <?= $currMethod === 'Tunai' ? 'checked' : '' ?>>
+                                            <div class="method-card">
+                                                <div class="method-icon"><?= icon('banknote') ?></div>
+                                                <div class="method-info">
+                                                    <strong>Cash / Tunai</strong>
+                                                    <small>Bayar di kasir</small>
+                                                </div>
+                                            </div>
+                                        </label>
+
+                                        <!-- Opsi 2: QRIS -->
+                                        <label class="method-choice">
+                                            <input type="radio" name="payment_method" value="QRIS" <?= $currMethod === 'QRIS' ? 'checked' : '' ?>>
+                                            <div class="method-card">
+                                                <div class="method-icon"><?= icon('qr-code') ?></div>
+                                                <div class="method-info">
+                                                    <strong>QRIS</strong>
+                                                    <small>Scan instan</small>
+                                                </div>
+                                            </div>
+                                        </label>
+
+                                        <!-- Opsi 3: Transfer Bank -->
+                                        <label class="method-choice">
+                                            <input type="radio" name="payment_method" value="Transfer" <?= $currMethod === 'Transfer' ? 'checked' : '' ?>>
+                                            <div class="method-card">
+                                                <div class="method-icon"><?= icon('landmark') ?></div>
+                                                <div class="method-info">
+                                                    <strong>Transfer Bank</strong>
+                                                    <small>BNI, BRI, BCA, Mandiri</small>
+                                                </div>
+                                            </div>
+                                        </label>
+                                    </div>
+
+                                    <!-- Panel Instruksi Cash -->
+                                    <div class="payment-guide-box" data-method-box="Tunai" style="display:none">
+                                        <div style="display:flex;gap:12px;align-items:flex-start">
+                                            <span style="font-size:1.6rem;color:var(--orange-600)"><?= icon('wallet') ?></span>
+                                            <div>
+                                                <h4 style="margin-bottom:4px">Pembayaran Tunai di Kasir Bengkel</h4>
+                                                <p style="margin:0;font-size:.88rem;color:var(--slate-500)">
+                                                    Silakan bayar tunai sejumlah <strong><?= rupiah($service['cost']) ?></strong> langsung di kasir ServisYuk ketika Anda mengambil kendaraan. Klik tombol konfirmasi di bawah untuk memberi tahu kasir.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Panel Instruksi QRIS -->
+                                    <div class="payment-guide-box" data-method-box="QRIS" style="display:none">
+                                        <div class="qris-guide-header">
+                                            <div>
+                                                <h4 style="margin-bottom:4px">Scan QRIS ServisYuk</h4>
+                                                <p style="margin:0;font-size:.88rem;color:var(--slate-500)">Buka aplikasi m-Banking atau e-Wallet (BCA Mobile, Livin by Mandiri, BRImo, BNI Mobile, GoPay, OVO, DANA, ShopeePay), lalu scan kode QR di bawah:</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="qris-preview-card">
+                                            <div class="qris-card-left">
+                                                <div class="qris-img-wrap">
+                                                    <img src="<?= e(QRIS_IMAGE_PATH) ?>" alt="QRIS ServisYuk">
+                                                </div>
+                                                <a class="qris-download-btn button button-ghost button-sm" href="<?= e(QRIS_IMAGE_PATH) ?>" download="QRIS-ServisYuk.svg">
+                                                    <?= icon('download') ?> Unduh Kode QR
+                                                </a>
+                                            </div>
+                                            <div class="qris-card-info">
+                                                <span class="badge badge-blue">NMID: <?= e(QRIS_NMID) ?></span>
+                                                <h3 style="margin:8px 0 2px"><?= e(QRIS_MERCHANT_NAME) ?></h3>
+                                                <p style="font-size:.85rem;color:var(--slate-500);margin-bottom:10px">Mendukung seluruh aplikasi pembayaran berstandar QRIS Indonesia.</p>
+                                                <div class="qris-amount-tag">
+                                                    <small>Total Tagihan Servis</small>
+                                                    <strong><?= rupiah($service['cost']) ?></strong>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Panel Instruksi Bank Transfer (BNI, BRI, BCA, Mandiri) -->
+                                    <div class="payment-guide-box" data-method-box="Transfer" style="display:none">
+                                        <h4 style="margin-bottom:6px">Pilih Bank Tujuan Transfer:</h4>
+                                        
+                                        <div class="bank-selector">
+                                            <label class="bank-pill">
+                                                <input type="radio" name="bank_choice" value="bni" checked>
+                                                <div class="bank-pill-inner">BNI</div>
+                                            </label>
+                                            <label class="bank-pill">
+                                                <input type="radio" name="bank_choice" value="bri">
+                                                <div class="bank-pill-inner">BRI</div>
+                                            </label>
+                                            <label class="bank-pill">
+                                                <input type="radio" name="bank_choice" value="bca">
+                                                <div class="bank-pill-inner">BCA</div>
+                                            </label>
+                                            <label class="bank-pill">
+                                                <input type="radio" name="bank_choice" value="mandiri">
+                                                <div class="bank-pill-inner">Bank Mandiri</div>
+                                            </label>
+                                        </div>
+
+                                        <?php foreach (BANK_ACCOUNTS as $key => $bank): ?>
+                                            <div class="bank-account-card" data-bank-box="<?= e($key) ?>" style="display:none">
+                                                <div>
+                                                    <span style="font-size:.75rem;letter-spacing:.08em;color:var(--slate-400);font-weight:800;text-transform:uppercase"><?= e($bank['name']) ?></span>
+                                                    <div class="account-number-box">
+                                                        <code><?= e($bank['account_number']) ?></code>
+                                                        <button type="button" class="btn-copy-acc" data-copy="<?= e($bank['account_number']) ?>">Salin</button>
+                                                    </div>
+                                                    <small style="color:var(--slate-500)">a.n. <strong><?= e($bank['account_name']) ?></strong></small>
+                                                </div>
+                                                <div style="text-align:right">
+                                                    <small style="display:block;color:var(--slate-400)">Nominal Transfer</small>
+                                                    <strong style="color:var(--orange-600);font-size:1.05rem"><?= rupiah($service['cost']) ?></strong>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+
+                                    <!-- Bukti Pembayaran (untuk QRIS & Transfer Bank) -->
+                                    <div class="proof-upload-section" style="margin-top:14px">
+                                        <label>UNGGAH BUKTI PEMBAYARAN (JPG/PNG/PDF, MAKS 2 MB)</label>
+                                        <input class="text-input" type="file" name="proof" accept=".jpg,.jpeg,.png,.pdf">
+                                        <small class="text-muted" style="display:block;margin-top:4px">Lampirkan tangkapan layar (screenshot) transfer bank atau bukti pembayaran QRIS.</small>
+                                    </div>
+
+                                    <button class="button button-primary button-sm btn-submit-payment" type="submit" style="margin-top:16px">
+                                        <?= icon('upload') ?> Kirim Bukti Pembayaran
+                                    </button>
+                                </div>
                             </form>
                         <?php endforeach; ?>
                     <?php else: ?>
